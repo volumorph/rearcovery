@@ -59,7 +59,8 @@ Account: {
 - **Поиск** `filterAccounts()` — по названию, логину, заметкам, телефону, общему доступу; `state.search`; сброс при блокировке.
 - **Дубли паролей** `dupPasswordGroups()` — группа по одинаковому `password`; бейдж «⚠️ дубль пароля» на карточке + риск в «Проверке безопасности».
 - **Генератор** `generatePassword()` — `crypto.getRandomValues` + Fisher–Yates, чтобы обязательные классы символов не скапливались в начале.
-- **«О приложении»** `openAbout()` — `APP_VERSION`; на http(s) хэш = SHA-256 отданного файла (`fetch(location.href)`), версия из `./VERSION` (создаётся CI); на `file://` — хэш сохранённой при загрузке копии `APP_SOURCE`.
+- **«О приложении»** `openAbout()` — `APP_VERSION`; на http(s) хэш = SHA-256 отданного файла (`fetch(location.href)`), версия из `./VERSION` (создаётся CI); на `file://` — хэш сохранённой при загрузке копии `APP_SOURCE`. Хэш кешируется в `ABOUT_HASH`.
+- **Проверка обновлений** `checkUpdates()` — единственный внешний запрос в коде: `fetch` к GitHub API (`/repos/{GITHUB_REPO}/releases/latest`); сверяет SHA-256 последнего релиза (из тела релиза) с `ABOUT_HASH` текущего файла. Данных пользователя не передаёт.
 - **Скачивание копии** `downloadLocalCopy()` — на http(s) `fetch` исходника; на `file://` — `APP_SOURCE`.
 - **Автоблокировка** — `IDLE_MS = 15 мин`, `lock()` сначала сохраняет изменения.
 
