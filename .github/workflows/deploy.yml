@@ -1,0 +1,81 @@
+name: build-deploy
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute SHA-256
+        id: hash
+        run: echo "sha=$(sha256sum password-guide.html | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Update README with hash
+        run: |
+          python3 - "${{ steps.hash.outputs.sha }}" <<'EOF'
+          import sys, re
+          sha = sys.argv[1]
+          p = 'README.md'
+          s = open(p, encoding='utf-8').read()
+          s2 = re.sub(r'(Хэш текущей версии:.*?`)[0-9a-f]{64}(`)', r'\g<1>' + sha + r'\g<2>', s)
+          if s2 != s:
+              open(p, 'w', encoding='utf-8').write(s2)
+              print('README updated')
+          else:
+              print('README marker not found or unchanged')
+          EOF
+
+      - name: Commit README back to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: обновить хэш версии"
+            git push
+            echo "README committed and pushed"
+          else
+            echo "no README changes"
+          fi
+
+      - name: Build gh-pages site
+        run: |
+          rm -rf /tmp/site
+          mkdir -p /tmp/site
+          cp password-guide.html index.html README.md /tmp/site/
+          echo "v1.0.${{ github.run_number }}" > /tmp/site/VERSION
+          ls -la /tmp/site
+
+      - name: Publish gh-pages branch
+        run: |
+          git checkout --orphan gh-pages
+          git rm -rf --quiet . >/dev/null 2>&1 || true
+          cp /tmp/site/* .
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "deploy v1.0.${{ github.run_number }}"
+          git push origin gh-pages --force
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER="v1.0.${{ github.run_number }}"
+          gh release create "$VER" \
+            --title "Release $VER" \
+            --notes "SHA-256: \`${{ steps.hash.outputs.sha }}\`" || echo "release already exists, skipped"
