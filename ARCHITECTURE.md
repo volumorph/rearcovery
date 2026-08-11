@@ -1,0 +1,78 @@
+# ARCHITECTURE.md — устройство приложения
+
+Всё приложение — один файл `password-guide.html` (~2000 строк): `<style>` → HTML-экраны → `<script>`. Ниже — как оно устроено изнутри.
+
+## Общая схема
+
+```
+boot()
+ └─ migrateLegacy()  — одноразовый перенос старого одиночного хранилища
+ └─ экран: setup (нет хранилищ) | unlock (есть хранилища)
+      └─ tryUnlock() — PBKDF2 из пароля → AES-GCM расшифровка блоба → state.vault
+           └─ экран main: вкладки «Аккаунты» / «Путеводитель»
+                └─ правки → scheduleSave() → saveBlob() (перешифровка → localStorage)
+                └─ lock() — сохранение + сброс ключа из памяти
+```
+
+## Криптография и хранение
+
+- `deriveKey(pass, salt, iterations)` — PBKDF2-SHA256 → AES-GCM `CryptoKey`. Параметры хранятся в блобе.
+- `encryptWithKey(vault, key)` / `decryptWithKey(blob, key)` — AES-256-GCM, случайный IV на каждый блоб.
+- `buildBlob(vault)` → `{app:'password-vault', version:1, kdf:'PBKDF2-SHA256', iterations:600000, salt, iv, ct}`. В блобе **нет открытых данных**.
+- `validBlob(b)` — проверка структуры перед импортом/миграцией.
+- localStorage: `pvg.vaults.v1` — массив `{id, name, blob, updatedAt}` (реестр нескольких хранилищ); `pvg.blob.v1` — устаревший одиночный формат, читается только `migrateLegacy()`.
+- `scheduleSave()` — отложенное на 250 мс автосохранение (`saveBlob()`), статус в шапке («Сохранено ✓»).
+- Смена пароля `doChangePass()`: проверить текущий пароль расшифровкой → вывести новый ключ → перешифровать.
+
+## Модель данных (в `state.vault`, расшифрована в памяти)
+
+```
+vault: {
+  version: 1,
+  accounts: [ Account ],
+  layout: { nodes: { [id]: {x,y} }, camera: {x,y,s} }   // раскладка графа
+}
+
+Account: {
+  id, type, name, username, password, notes,
+  recovery: { viaAccountId, codes, phone, notes, questions: [{q,a}] },
+  shared: [ {name, username, password} ]                  // «кто ещё может входить»
+}
+```
+
+- `type` — ключ из `ACCOUNT_TYPES` (иконки, инлайн-SVG, без сети).
+- `viaAccountId` — связь «этот аккаунт восстанавливается через…»; из неё строится граф и маршруты.
+- Раскладка графа сохраняется **внутри хранилища** (`vault.layout`) — переносится с бэкапом.
+
+## Экраны и модалки
+
+- `screen-setup` — создание хранилища; `showSetupScreen('first'|'additional')`.
+- `screen-unlock` — список хранилищ, вход по мастер-паролю, импорт, скачивание копии, «О приложении».
+- `screen-main` — вкладки `accounts` / `guide`.
+- Модалки: `modal-editor` (аккаунт), `modal-auth` (подтверждение мастер-паролем), `modal-export`, `modal-import`, `modal-change-pass`, `modal-generator`, `modal-about`.
+
+## Ключевые потоки
+
+- **Защита правок/удаления:** `requestAccountEdit(id)` / `requestDeleteAccount(id)` → `requestAuth(action, id)` → `modal-auth` → `confirmAuth()` сверяет пароль реальной расшифровкой текущего блоба → только потом `openEditor()` / удаление. Единая точка входа — без обхода.
+- **Импорт** `applyImport()` — валидация `validBlob()`, добавляет хранилище в реестр (не перезаписывает), блокируется и просит пароль нового хранилища.
+- **Экспорт** `exportFile()` — скачивание `.json`; `exportClipboard()` — в буфер.
+- **Поиск** `filterAccounts()` — по названию, логину, заметкам, телефону, общему доступу; `state.search`; сброс при блокировке.
+- **Дубли паролей** `dupPasswordGroups()` — группа по одинаковому `password`; бейдж «⚠️ дубль пароля» на карточке + риск в «Проверке безопасности».
+- **Генератор** `generatePassword()` — `crypto.getRandomValues` + Fisher–Yates, чтобы обязательные классы символов не скапливались в начале.
+- **«О приложении»** `openAbout()` — `APP_VERSION`; на http(s) хэш = SHA-256 отданного файла (`fetch(location.href)`), версия из `./VERSION` (создаётся CI); на `file://` — хэш сохранённой при загрузке копии `APP_SOURCE`.
+- **Скачивание копии** `downloadLocalCopy()` — на http(s) `fetch` исходника; на `file://` — `APP_SOURCE`.
+- **Автоблокировка** — `IDLE_MS = 15 мин`, `lock()` сначала сохраняет изменения.
+
+## Путеводитель и граф
+
+- `analyzeRecovery()` — DFS: поиск циклов (`inCycle`), глубина цепочки (`depthOf`).
+- `chainFor(id)` — маршрут восстановления по `viaAccountId` до конечной точки (или цикл).
+- `computeRisks()` — «нет пути и данных», «цикл», «короткий пароль», «дубль пароля».
+- Нодовый редактор (стиль Blender): SVG-канвас с сеткой; узлы перетаскиваются, связи создаются перетаскиванием за сокеты; зум колесом/кнопками; панорама; выбор узла подсвечивает маршрут (`updateChainHighlight()` — обновляет атрибуты существующих элементов, CSS-транзишены ~0.45 с); `Del` удаляет выбранное; двойной клик — редактирование (через `requestAccountEdit`, т.е. с подтверждением пароля).
+- Раскладка слева направо: восстанавливаемые слева, конечные точки справа (`ensureLayout()`).
+
+## Деплой и проверяемость
+
+- CI `.github/workflows/deploy.yml` на push в `main`: `sha256sum password-guide.html` → обновление строки «Хэш текущей версии» в README (коммит обратно) → сборка ветки `gh-pages` (сайт: `password-guide.html`, `index.html`, `README.md`, `VERSION` = `v1.0.<run_number>`) → релиз GitHub `v1.0.N` с хэшем в описании.
+- GitHub Pages: источник — ветка `gh-pages` (зарелиженная версия, не live-main). Пуш в `gh-pages` триггерит сборку; смена источника через API сборку не запускает.
+- Проверка пользователем: «О приложении» → SHA-256 на экране == хэш в релизе/README.
