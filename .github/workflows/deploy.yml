@@ -80,4 +80,4 @@ jobs:
             --title "Release $VER" \
             --notes "SHA-256: \`${{ steps.hash.outputs.sha }}\`
 
-Доступные маркеры (типы-иконки) на момент релиза: Google, Instagram, Telegram, Genshin Impact, Proton, Mail.ru, MEGA, Почта, Банк, Соцсеть, Игра, Сервис, Без типа." || echo "release already exists, skipped"
+            Доступные маркеры (типы-иконки) на момент релиза: Google, Instagram, Telegram, Genshin Impact, Proton, Mail.ru, MEGA, Почта, Банк, Соцсеть, Игра, Сервис, Без типа." || echo "release already exists, skipped"
