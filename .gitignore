@@ -1,0 +1,4 @@
+# Freebuff / локальные артефакты
+.freebuff/
+node_modules/
+*.log

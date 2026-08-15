@@ -20,6 +20,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build single file
+        run: node build.mjs
+
+      - name: Verify build is up to date
+        run: git diff --exit-code -- password-guide.html
+
+      - name: Run tests
+        run: node --test
+
       - name: Compute SHA-256
         id: hash
         run: echo "sha=$(sha256sum password-guide.html | awk '{print $1}')" >> "$GITHUB_OUTPUT"

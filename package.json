@@ -1,0 +1,8 @@
+{
+  "name": "rearcovery",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test"
+  }
+}

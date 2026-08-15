@@ -1,6 +1,21 @@
 # ARCHITECTURE.md — устройство приложения
 
-Всё приложение — один файл `password-guide.html` (~2000 строк): `<style>` → HTML-экраны → `<script>`. Ниже — как оно устроено изнутри.
+Исходники — в `src/`, собираются `npm run build` в один самодостаточный `password-guide.html`. Ниже — как он устроен изнутри.
+
+## Структура исходников и сборка
+
+- `src/template.html` — каркас: `<head>` (включая CSP-meta) + разметка `<body>`; плейсхолдеры `{{STYLES}}` (внутри `<style>`) и `{{SCRIPT}}` (внутри `<script>`).
+- `src/styles.css` — все стили.
+- `src/js/*.js` — логика по модулям, конкатенируются в порядке имён файлов:
+  - `00-core.js` — константы, `state`, утилиты, иконки, toast/copy/clipboard, showScreen/модалки.
+  - `01-crypto.js` — PBKDF2/AES-GCM, блоб, реестр хранилищ, индикатор бэкапа.
+  - `02-auth.js` — создание/вход/блокировка/смена пароля, операции над аккаунтами.
+  - `03-accounts.js` — вкладки панели, список аккаунтов, редактор.
+  - `04-guide.js` — анализ восстановления, риски, «Путеводитель».
+  - `05-graph.js` — нодовый редактор, рендер, взаимодействия, режим стрима.
+  - `06-tools.js` — экспорт/импорт, «О приложении», генератор, автоблокировка, запуск.
+- `build.mjs` — склеивает всё в `password-guide.html` (`'use strict';` добавляется сборщиком первой строкой скрипта). Модули — ES5 в общей области видимости (как и был монолит): порядок конкатенации сохраняет порядок исполняемых строк; `var`/`function` хойстятся.
+- Собранный `password-guide.html` **коммитится**; CI пересобирает и сверяет (`git diff --exit-code`), поэтому исходники и артефакт не могут разойтись.
 
 ## Общая схема
 
@@ -18,11 +33,12 @@ boot()
 
 - `deriveKey(pass, salt, iterations)` — PBKDF2-SHA256 → AES-GCM `CryptoKey`. Параметры хранятся в блобе.
 - `encryptWithKey(vault, key)` / `decryptWithKey(blob, key)` — AES-256-GCM, случайный IV на каждый блоб.
-- `buildBlob(vault)` → `{app:'password-vault', version:1, kdf:'PBKDF2-SHA256', iterations:600000, salt, iv, ct}`. В блобе **нет открытых данных**.
+- `buildBlob(vault)` → `{app:'password-vault', version:1, kdf:'PBKDF2-SHA256', kdfVersion:2, iterations:1200000, salt, iv, ct}`. В блобе **нет открытых данных**. Старые блобы v1 (600k, без `kdfVersion`) остаются читаемыми: разблокировка берёт итерации из `blob.iterations`.
 - `validBlob(b)` — проверка структуры перед импортом/миграцией.
-- localStorage: `pvg.vaults.v1` — массив `{id, name, blob, updatedAt}` (реестр нескольких хранилищ); `pvg.blob.v1` — устаревший одиночный формат, читается только `migrateLegacy()`.
+- localStorage: `pvg.vaults.v1` — массив `{id, name, blob, updatedAt, lastExportAt}` (реестр нескольких хранилищ); `pvg.blob.v1` — устаревший одиночный формат, читается только `migrateLegacy()`.
 - `scheduleSave()` — отложенное на 250 мс автосохранение (`saveBlob()`); статус «Сохранено ✓» выводится в плашку `#save-status` в нижнем правом углу поля графа.
 - Смена пароля `doChangePass()`: проверить текущий пароль расшифровкой → вывести новый ключ → перешифровать.
+- Укрепление KDF `doStrengthenKdf()`: пароль тот же, но ключ пере-выводится с 1.2M итераций и свежей солью (перешифровка без смены пароля).
 
 ## Модель данных (в `state.vault`, расшифрована в памяти)
 
@@ -50,7 +66,9 @@ Account: {
 
 - `screen-setup` — создание хранилища; `showSetupScreen('first'|'additional')`.
 - `screen-unlock` — список хранилищ, вход по мастер-паролю, импорт, скачивание копии, «О приложении».
-- `screen-main` — полноэкранный (`100vw`×`100vh`, без шапки и футера) единый экран: `.workspace` (`2fr 1fr`) — слева граф, справа `.side-panel` с внутренними вкладками `Аккаунты` / `Путеводитель` (`switchPanel()`). Кнопки «Генератор/Экспорт/Импорт/Сменить пароль/Заблокировать/Скрыть данные/О приложении» живут в тулбаре графа; название приложения — плашка `.graph-title` в верхнем левом углу канваса (при выборе узла под заголовком `updateGraphTitleNotes()` показывает заметки аккаунта — `a.notes` и `recovery.notes`), статус сохранения — `#save-status` в нижнем правом. Колонки складываются в одну только уже 560px.
+- Индикатор режима: `renderModeBadge()` (вызывается из `boot()`) заполняет плашки `.mode-badge` на обоих экранах входа — «🌐 Онлайн-версия» при `http(s)` или «💻 Локальная версия (offline)» при `file://`.
+- `screen-main` — полноэкранный (`100vw`×`100vh`, без шапки и футера) единый экран: `.workspace` (`2fr 1fr`) — слева граф, справа `.side-panel` с внутренними вкладками `Аккаунты` / `Путеводитель` (`switchPanel()`). Кнопки «Генератор/Экспорт/Импорт/Сменить пароль/Укрепить шифрование/Заблокировать/Скрыть данные/О приложении» живут в тулбаре графа; название приложения — плашка `.graph-title` в верхнем левом углу канваса (при выборе узла под заголовком `updateGraphTitleNotes()` показывает заметки аккаунта — `a.notes` и `recovery.notes`), статус сохранения — `#save-status` в нижнем правом. Колонки складываются в одну только уже 560px.
+- **Индикатор бэкапа**: плашка `#backup-status` над `#save-status` (правый нижний угол канваса). `backupInfo()`/`refreshBackupStatus()` сравнивают `entry.updatedAt` и `entry.lastExportAt`; `markExported()` (из `exportFile()`/`exportClipboard()`) фиксирует время экспорта и перезаписывает реестр. Флаг `state.dirty` поднимается в `scheduleSave()` и сбрасывается в `saveBlob()`, а `updatedAt` двигается только при `dirty` — чтобы блокировка (пересохранение без правок) не помечала бэкап устаревшим. Клик по плашке открывает экспорт.
 - Модалки: `modal-editor` (аккаунт), `modal-auth` (подтверждение мастер-паролем), `modal-export`, `modal-import`, `modal-change-pass`, `modal-generator`, `modal-about`.
 
 ## Ключевые потоки
@@ -65,6 +83,8 @@ Account: {
 - **Проверка обновлений** `checkUpdates()` — единственный внешний запрос в коде: `fetch` к GitHub API (`/repos/{GITHUB_REPO}/releases/latest`); сверяет SHA-256 последнего релиза (из тела релиза) с `ABOUT_HASH` текущего файла. Данных пользователя не передаёт.
 - **Скачивание копии** `downloadLocalCopy()` — на http(s) `fetch` исходника; на `file://` — `APP_SOURCE`.
 - **Автоблокировка** — `IDLE_MS = 15 мин`, `lock()` сначала сохраняет изменения.
+- **CSP** — meta `Content-Security-Policy` в `<head>`: `default-src 'none'`; inline script/style (`'unsafe-inline'`); `connect-src 'self' https://api.github.com` (хэш/скачивание копии/VERSION/проверка обновлений); `img-src data:` (favicon); `object-src 'none'`; `base-uri 'none'`; `form-action 'none'`. Внешние script-хосты запрещены.
+- **Буфер обмена** — `copyText(t, {secret:true})` (пароль в карточке и в шагах маршрута) планирует `scheduleClipboardClear()`; через `CLIPBOARD_CLEAR_MS = 30000` мс `clearClipboardIfSecret()` читает буфер и стирает секрет, только если он всё ещё там (read-сравнение), а при недоступном `readText` очищает безусловно. Тост: «Скопировано · буфер очистится через 30 с».
 
 ## Путеводитель и граф
 
@@ -80,6 +100,12 @@ Account: {
 - Узел Telegram имеет **два выходных сокета**: красный — исходная почта (это `recovery.viaAccountId`, перекрашен), зелёный — почта для уведомлений (`notifyEmailId`). Провода: красный `garr-red`/`#e05a5a`, зелёный `garr-green`/`#4caf7d`; ключ зелёного провода `a.id~dstId`, у красного — `a.id>dstId`, выбор провода хранит `wireKind` ('via'|'notify'), чтобы `Del` разрывал нужную связь (`setVia()`/`setNotify()`). В редакторе для типа Telegram появляется селект «Почта для уведомлений» (`ed-notify`, `syncNotifyField()`), а лейбл поля восстановления меняется на «Исходная почта (восстановление Telegram)». Карточка аккаунта и шаги маршрута показывают «уведомления → …».
 - Если у аккаунта нет пароля, он помечается **«пароль не записан»** (красным) в трёх местах: строка в теле узла (`pwRow`, высота ноды 86px), значение «Пароль» в карточке списка и в шаге маршрута.
 - **Режим стрима** (`state.streamMode`, кнопка `#btn-stream` → `toggleStreamMode()`): названия узлов и тултипы маскируются (`streamName()`/`streamLabel()` — сервисная подпись из `ACCOUNT_TYPES`, почты mail/google/mailru/proton — «•••••»), строки логинов скрываются, плашка заметок `updateGraphTitleNotes()` очищается, правая панель полностью скрывается за `#stream-overlay` (класс `.side-panel.streaming`), редактирование/удаление блокируется тостом. Режим не сохраняется в хранилище.
+
+## Тесты
+
+- `tests/` — юнит-тесты (Node `node --test`, без браузера): `crypto.test.mjs` (крипто-путь), `backup.test.mjs` (индикатор бэкапа), `clipboard.test.mjs` (очистка буфера). Харнесс `loadApp()` в `tests/helpers.mjs` извлекает `<script>` из `password-guide.html` и гоняет его в `vm`-контексте с фейковыми `document`/`localStorage`/`navigator`, таймеры заглушены.
+- Покрыто: round-trip `encryptWithKey`/`decryptWithKey` (юникод, tamper-детект, чужой ключ), полный `buildBlob` с 1.2M итерациями и `kdfVersion`, совместимость старого блоба v1 (600k), re-KDF 600k → 1.2M через `doStrengthenKdf`, `validBlob`, `migrateLegacy` (перенос/битые данные), `applyImport` (битый JSON, не-блоб, битый шифртекст), `backupInfo`/`refreshBackupStatus`/`markExported`, dirty-логика `saveBlob`, очистка буфера после копирования пароля (обычная, «не затирать чужое», fallback при недоступном readText).
+- Запуск: `npm test`. CI выполняет `node --test` до хэша/сборки/релиза.
 
 ## Деплой и проверяемость
 
