@@ -48,13 +48,12 @@ function renderVaultList(){
   el.innerHTML = state.vaults.map(function(v){
     var sel = v.id === state.selectedVaultId;
     var when = v.updatedAt ? new Date(v.updatedAt).toLocaleString() : '—';
+    // когда сохранён файл и какой версии — видно прямо в карточке хранилища;
+    // каждое поле своей строкой, чтобы длинное имя файла не съедало место
     var meta = 'обновлено: ' + esc(when);
-    // когда сохранён файл и какой версии — видно прямо в карточке хранилища
-    var fileInfo = [];
-    if(v.fileName) fileInfo.push('файл: ' + esc(v.fileName));
-    if(v.blob && v.blob.savedAt) fileInfo.push('сохранён: ' + esc(new Date(v.blob.savedAt).toLocaleString()));
-    if(v.blob) fileInfo.push('формат v' + (v.blob.version || 1) + '.' + (v.blob.kdfVersion || 1));
-    if(fileInfo.length) meta += '<br>' + fileInfo.join(' · ');
+    if(v.fileName) meta += '<br>файл: ' + esc(v.fileName);
+    if(v.blob && v.blob.savedAt) meta += '<br>сохранено: ' + esc(new Date(v.blob.savedAt).toLocaleString());
+    if(v.blob) meta += '<br>формат v' + (v.blob.version || 1) + '.' + (v.blob.kdfVersion || 1);
     return '<div class="vault-card' + (sel ? ' selected' : '') + '" onclick="selectVault(' + esc(jsStr(v.id)) + ')">'
       + '<div class="vault-name">🔐 ' + esc(v.name || 'Без названия') + '</div>'
       + '<div class="vault-meta">' + meta + '</div>'
