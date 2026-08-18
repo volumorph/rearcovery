@@ -33,9 +33,9 @@ boot()
 
 - `deriveKey(pass, salt, iterations)` — PBKDF2-SHA256 → AES-GCM `CryptoKey`. Параметры хранятся в блобе.
 - `encryptWithKey(vault, key)` / `decryptWithKey(blob, key)` — AES-256-GCM, случайный IV на каждый блоб.
-- `buildBlob(vault)` → `{app:'password-vault', version:1, kdf:'PBKDF2-SHA256', kdfVersion:2, iterations:1200000, salt, iv, ct}`. В блобе **нет открытых данных**. Старые блобы v1 (600k, без `kdfVersion`) остаются читаемыми: разблокировка берёт итерации из `blob.iterations`.
+- `buildBlob(vault)` → `{app:'password-vault', version:1, kdf:'PBKDF2-SHA256', kdfVersion:2, iterations:1200000, salt, iv, ct, savedAt?}`. В блобе **нет открытых данных** (кроме служебной метки `savedAt` — времени сохранения файла, без секретов). Старые блобы v1 (600k, без `kdfVersion`) остаются читаемыми: разблокировка берёт итерации из `blob.iterations`.
 - `validBlob(b)` — проверка структуры перед импортом/миграцией.
-- localStorage: `pvg.vaults.v1` — массив `{id, name, blob, updatedAt, lastExportAt}` (реестр нескольких хранилищ); `pvg.blob.v1` — устаревший одиночный формат, читается только `migrateLegacy()`.
+- localStorage: `pvg.vaults.v1` — массив `{id, name, blob, updatedAt, lastExportAt, fileName}` (реестр нескольких хранилищ; `fileName` — имя последнего экспортированного/импортированного файла); `pvg.blob.v1` — устаревший одиночный формат, читается только `migrateLegacy()`.
 - `scheduleSave()` — отложенное на 250 мс автосохранение (`saveBlob()`); статус «Сохранено ✓» выводится в плашку `#save-status` в нижнем правом углу поля графа.
 - Смена пароля `doChangePass()`: проверить текущий пароль расшифровкой → вывести новый ключ → перешифровать.
 - Укрепление KDF `doStrengthenKdf()`: пароль тот же, но ключ пере-выводится с 1.2M итераций и свежей солью (перешифровка без смены пароля).
@@ -68,14 +68,14 @@ Account: {
 - `screen-unlock` — список хранилищ, вход по мастер-паролю, импорт, скачивание копии, «О приложении».
 - Индикатор режима: `renderModeBadge()` (вызывается из `boot()`) заполняет плашки `.mode-badge` на обоих экранах входа — «🌐 Онлайн-версия» при `http(s)` или «💻 Локальная версия (offline)» при `file://`.
 - `screen-main` — полноэкранный (`100vw`×`100vh`, без шапки и футера) единый экран: `.workspace` (`2fr 1fr`) — слева граф, справа `.side-panel` с внутренними вкладками `Аккаунты` / `Путеводитель` (`switchPanel()`). Кнопки «Генератор/Экспорт/Импорт/Сменить пароль/Укрепить шифрование/Заблокировать/Скрыть данные/О приложении» живут в тулбаре графа; название приложения — плашка `.graph-title` в верхнем левом углу канваса (при выборе узла под заголовком `updateGraphTitleNotes()` показывает заметки аккаунта — `a.notes` и `recovery.notes`), статус сохранения — `#save-status` в нижнем правом. Колонки складываются в одну только уже 560px.
-- **Индикатор бэкапа**: плашка `#backup-status` над `#save-status` (правый нижний угол канваса). `backupInfo()`/`refreshBackupStatus()` сравнивают `entry.updatedAt` и `entry.lastExportAt`; `markExported()` (из `exportFile()`/`exportClipboard()`) фиксирует время экспорта и перезаписывает реестр. Флаг `state.dirty` поднимается в `scheduleSave()` и сбрасывается в `saveBlob()`, а `updatedAt` двигается только при `dirty` — чтобы блокировка (пересохранение без правок) не помечала бэкап устаревшим. Клик по плашке открывает экспорт.
+- **Индикатор бэкапа**: плашка `#backup-status` над `#save-status` (правый нижний угол канваса). `backupInfo()`/`refreshBackupStatus()` сравнивают `entry.updatedAt` и `entry.lastExportAt` **по календарным дням** (`dayOf()`, обнуление времени суток): «Бэкап актуален», если последняя правка и экспорт случились в один день, а не секунда в секунду. `markExported(fileName)` (из `exportFile()`/`exportClipboard()`) фиксирует время экспорта, сохраняет имя файла и перезаписывает реестр. Флаг `state.dirty` поднимается в `scheduleSave()` и сбрасывается в `saveBlob()`, а `updatedAt` двигается только при `dirty` — чтобы блокировка (пересохранение без правок) не помечала бэкап устаревшим. Клик по плашке открывает экспорт.
 - Модалки: `modal-editor` (аккаунт), `modal-auth` (подтверждение мастер-паролем), `modal-export`, `modal-import`, `modal-change-pass`, `modal-generator`, `modal-about`.
 
 ## Ключевые потоки
 
 - **Защита правок/удаления:** `requestAccountEdit(id)` / `requestDeleteAccount(id)` → `requestAuth(action, id)` → `modal-auth` → `confirmAuth()` сверяет пароль реальной расшифровкой текущего блоба → только потом `openEditor()` / удаление. Единая точка входа — без обхода.
-- **Импорт** `applyImport()` — валидация `validBlob()`, добавляет хранилище в реестр (не перезаписывает), блокируется и просит пароль нового хранилища.
-- **Экспорт** `exportFile()` — скачивание `.json`; `exportClipboard()` — в буфер.
+- **Импорт** `applyImport(fileName)` — валидация `validBlob()`, добавляет хранилище в реестр (не перезаписывает), сохраняет имя файла и метку `savedAt` из блоба, блокируется и просит пароль нового хранилища. Тост показывает «когда сохранён и в какой версии»; карточка хранилища на экране входа — «файл: <имя> · сохранён: <дата> · формат v1.x».
+- **Экспорт** `exportFile()` — скачивание `.json` с именем `exportFileName()` (у импортированных хранилищ сохраняется **оригинальное имя файла**, у остальных — `rearcovery-backup-<дата>.json`); `exportClipboard()` — в буфер.
 - **Поиск** `filterAccounts()` — по названию, логину, заметкам, телефону, общему доступу; `state.search`; сброс при блокировке.
 - **Дубли паролей** `dupPasswordGroups()` — группа по одинаковому `password`; бейдж «⚠️ дубль пароля» на карточке + риск в «Проверке безопасности».
 - **Генератор** `generatePassword()` — `crypto.getRandomValues` + Fisher–Yates, чтобы обязательные классы символов не скапливались в начале.
@@ -104,7 +104,7 @@ Account: {
 ## Тесты
 
 - `tests/` — юнит-тесты (Node `node --test`, без браузера): `crypto.test.mjs` (крипто-путь), `backup.test.mjs` (индикатор бэкапа), `clipboard.test.mjs` (очистка буфера). Харнесс `loadApp()` в `tests/helpers.mjs` извлекает `<script>` из `password-guide.html` и гоняет его в `vm`-контексте с фейковыми `document`/`localStorage`/`navigator`, таймеры заглушены.
-- Покрыто: round-trip `encryptWithKey`/`decryptWithKey` (юникод, tamper-детект, чужой ключ), полный `buildBlob` с 1.2M итерациями и `kdfVersion`, совместимость старого блоба v1 (600k), re-KDF 600k → 1.2M через `doStrengthenKdf`, `validBlob`, `migrateLegacy` (перенос/битые данные), `applyImport` (битый JSON, не-блоб, битый шифртекст), `backupInfo`/`refreshBackupStatus`/`markExported`, dirty-логика `saveBlob`, очистка буфера после копирования пароля (обычная, «не затирать чужое», fallback при недоступном readText).
+- Покрыто: round-trip `encryptWithKey`/`decryptWithKey` (юникод, tamper-детект, чужой ключ), полный `buildBlob` с 1.2M итерациями, `kdfVersion` и `savedAt`, совместимость старого блоба v1 (600k), re-KDF 600k → 1.2M через `doStrengthenKdf`, `validBlob`, `migrateLegacy` (перенос/битые данные), `applyImport` (битый JSON, не-блоб, битый шифртекст, имя файла и `savedAt` в реестре), `backupInfo`/`refreshBackupStatus`/`markExported` с дневной гранулярностью («день в день» — актуален) и `exportFileName`, dirty-логика `saveBlob`, очистка буфера после копирования пароля (обычная, «не затирать чужое», fallback при недоступном readText).
 - Запуск: `npm test`. CI выполняет `node --test` до хэша/сборки/релиза.
 
 ## Деплой и проверяемость

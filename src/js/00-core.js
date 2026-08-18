@@ -122,12 +122,12 @@ function typeIconSvg(type, name, size){
 }
 
 var toastTimer = null;
-function toast(msg){
+function toast(msg, ms){
   var t = $('toast');
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, ms || 2200);
 }
 
 var CLIPBOARD_CLEAR_MS = 30000;   // через сколько очищать буфер после копирования пароля

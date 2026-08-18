@@ -31,7 +31,8 @@ function buildBlob(vault){
     return {
       app:'password-vault', version:1,
       kdf:'PBKDF2-SHA256', kdfVersion:KDF_VERSION, iterations:KDF_ITERATIONS,
-      salt: state.salt, iv: enc.iv, ct: enc.ct
+      salt: state.salt, iv: enc.iv, ct: enc.ct,
+      savedAt: new Date().toISOString()   // момент создания этого блоба (для «сохранён» при импорте)
     };
   });
 }
@@ -61,7 +62,7 @@ function migrateLegacy(){
     if(!raw) return;
     var b = JSON.parse(raw);
     if(!validBlob(b)) return;
-    var vaults = [{ id: uid(), name: 'Моё хранилище', blob: b, updatedAt: Date.now(), lastExportAt: null }];
+    var vaults = [{ id: uid(), name: 'Моё хранилище', blob: b, updatedAt: Date.now(), lastExportAt: null, fileName: null }];
     localStorage.setItem(LS_VAULTS, JSON.stringify(vaults));
     localStorage.removeItem(LS_KEY);
   }catch(e){}
@@ -89,7 +90,7 @@ function saveBlob(){
     var entry = currentEntry();
     if(!entry){
       state.vaultId = uid();
-      state.vaults.push({ id: state.vaultId, name: 'Моё хранилище', blob: blob, updatedAt: Date.now(), lastExportAt: null });
+      state.vaults.push({ id: state.vaultId, name: 'Моё хранилище', blob: blob, updatedAt: Date.now(), lastExportAt: null, fileName: null });
     } else {
       entry.blob = blob;
       // updatedAt поднимаем только при реальных изменениях: иначе блокировка
@@ -102,13 +103,18 @@ function saveBlob(){
 }
 
 /* ================= Индикатор бэкапа ================= */
+function dayOf(ms){ var d = new Date(ms); d.setHours(0,0,0,0); return d.getTime(); }
 function backupInfo(){
   if(!state.vault) return null;
   var entry = currentEntry();
   if(!entry) return null;
   var hasData = state.vault.accounts && state.vault.accounts.length > 0;
   var last = entry.lastExportAt || 0;
-  return { hasData: hasData, last: last, stale: last > 0 && (entry.updatedAt || 0) > last };
+  // «устарел» считаем по календарным дням, а не секундам: если последнее
+  // изменение и экспорт случились в один день — бэкап считается актуальным
+  var up = entry.updatedAt || 0;
+  var stale = last > 0 && up > 0 && dayOf(up) > dayOf(last);
+  return { hasData: hasData, last: last, stale: stale };
 }
 function refreshBackupStatus(){
   var el = $('backup-status');
@@ -128,13 +134,14 @@ function refreshBackupStatus(){
   } else {
     el.className = 'bup-ok';
     el.textContent = '✓ Бэкап актуален' + (days > 0 ? ' · ' + days + ' дн.' : ' · сегодня');
-    el.title = 'Последний бэкап содержит все изменения. Клик — экспорт.';
+    el.title = 'Бэкап свежий: экспорт сделан в день последних изменений. Клик — экспорт.';
   }
 }
-function markExported(){
+function markExported(fileName){
   var entry = currentEntry();
   if(!entry) return;
   entry.lastExportAt = Date.now();
+  if(typeof fileName === 'string' && fileName) entry.fileName = fileName;
   saveVaults(state.vaults);
   refreshBackupStatus();
 }

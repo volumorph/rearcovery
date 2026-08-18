@@ -221,6 +221,7 @@
       <button class="btn" onclick="exportFile()">⬇ Скачать файл .json</button>
       <button class="btn secondary" onclick="exportClipboard()">📋 Скопировать данные в буфер</button>
     </div>
+    <div class="note" id="export-filename"></div>
     <div class="note">На новом ПК: откройте этот HTML-файл → «Импорт» → выберите скачанный файл → введите мастер-пароль.</div>
   </div>
 </div>
@@ -229,7 +230,7 @@
 <div id="modal-import" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-import')">
   <div class="modal-panel">
     <h2>Импорт хранилища</h2>
-    <p style="color:var(--muted);font-size:14px">Текущее хранилище будет заменено данными из файла-бэкапа.</p>
+    <p style="color:var(--muted);font-size:14px">Импорт добавит хранилище в список и не затронет существующие. После импорта введите мастер-пароль этого файла — данные появятся после разблокировки.</p>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" onclick="document.getElementById('import-file').click()">Выбрать файл…</button>
       <input type="file" id="import-file" accept=".json,application/json" class="hidden" onchange="importFileChosen(this)">

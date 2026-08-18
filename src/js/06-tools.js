@@ -1,9 +1,20 @@
 /* ================= Экспорт / импорт ================= */
-function doExport(){ openModal('modal-export'); }
+function exportFileName(){
+  // оригинальное имя файла хранится в реестре (от импорта или прошлого экспорта)
+  var entry = currentEntry();
+  if(entry && entry.fileName) return entry.fileName;
+  return 'paroli-vault-' + new Date().toISOString().slice(0,10) + '.json';
+}
+
+function doExport(){
+  var el = $('export-filename');
+  if(el) el.textContent = 'Файл будет сохранён как: ' + exportFileName();
+  openModal('modal-export');
+}
 
 function exportFile(){
   buildBlob(state.vault).then(function(blob){
-    var name = 'paroli-vault-' + new Date().toISOString().slice(0,10) + '.json';
+    var name = exportFileName();
     var data = JSON.stringify(blob, null, 2);
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
@@ -12,7 +23,7 @@ function exportFile(){
     a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
     toast('Сохранён файл: ' + name);
-    markExported();
+    markExported(name);
   });
 }
 
@@ -130,7 +141,7 @@ function importFileChosen(input){
   if(!file) return;
   $('import-file-name').textContent = file.name;
   var reader = new FileReader();
-  reader.onload = function(){ applyImport(reader.result); };
+  reader.onload = function(){ applyImport(reader.result, file.name); };
   reader.readAsText(file);
 }
 
@@ -140,19 +151,22 @@ function importText(){
   applyImport(t);
 }
 
-function applyImport(text){
+function applyImport(text, fileName){
   var err = $('import-err');
   var blob;
   try{ blob = JSON.parse(text); }catch(e){ err.textContent = 'Не удалось разобрать JSON: ' + e.message; return; }
   if(!validBlob(blob)){ err.textContent = 'Файл не похож на бэкап «Путеводителя по паролям».'; return; }
-  var name = $('import-file-name').textContent || ('Импорт ' + new Date().toLocaleDateString());
+  var name = fileName || $('import-file-name').textContent || ('Импорт ' + new Date().toLocaleDateString());
   name = name.replace(/\.json$/i, '');
-  state.vaults.push({ id: uid(), name: name, blob: blob, updatedAt: Date.now(), lastExportAt: null });
+  state.vaults.push({ id: uid(), name: name, blob: blob, updatedAt: Date.now(), lastExportAt: null, fileName: fileName || null });
   saveVaults(state.vaults);
   state.selectedVaultId = state.vaults[state.vaults.length - 1].id;
   closeModal('modal-import');
   lock();
-  toast('Хранилище «' + name + '» добавлено. Введите его мастер-пароль.');
+  // «когда сохранён» и «какая версия» — прямо в сообщении после импорта
+  var saved = blob.savedAt ? new Date(blob.savedAt).toLocaleString() : 'дата неизвестна (старый формат)';
+  var fmt = 'v' + (blob.version || 1) + '.' + (blob.kdfVersion || 1);
+  toast('Хранилище «' + name + '» добавлено · сохранено: ' + saved + ' · формат ' + fmt + '. Введите его мастер-пароль.', 6000);
 }
 
 /* ================= Генератор паролей ================= */

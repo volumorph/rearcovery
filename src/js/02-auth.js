@@ -48,9 +48,16 @@ function renderVaultList(){
   el.innerHTML = state.vaults.map(function(v){
     var sel = v.id === state.selectedVaultId;
     var when = v.updatedAt ? new Date(v.updatedAt).toLocaleString() : '—';
+    var meta = 'обновлено: ' + esc(when);
+    // когда сохранён файл и какой версии — видно прямо в карточке хранилища
+    var fileInfo = [];
+    if(v.fileName) fileInfo.push('файл: ' + esc(v.fileName));
+    if(v.blob && v.blob.savedAt) fileInfo.push('сохранён: ' + esc(new Date(v.blob.savedAt).toLocaleString()));
+    if(v.blob) fileInfo.push('формат v' + (v.blob.version || 1) + '.' + (v.blob.kdfVersion || 1));
+    if(fileInfo.length) meta += '<br>' + fileInfo.join(' · ');
     return '<div class="vault-card' + (sel ? ' selected' : '') + '" onclick="selectVault(' + esc(jsStr(v.id)) + ')">'
       + '<div class="vault-name">🔐 ' + esc(v.name || 'Без названия') + '</div>'
-      + '<div class="vault-meta">обновлено: ' + esc(when) + '</div>'
+      + '<div class="vault-meta">' + meta + '</div>'
       + '<div class="vault-actions">'
       + '<button class="btn-mini" title="Переименовать" onclick="event.stopPropagation();renameVault(' + esc(jsStr(v.id)) + ')">✎</button>'
       + '<button class="btn-mini danger" title="Удалить из списка" onclick="event.stopPropagation();deleteVault(' + esc(jsStr(v.id)) + ')">✕</button>'
@@ -113,7 +120,7 @@ function doSetup(){
     state.key = key;
     state.vault = { version:1, accounts:[] };
     state.vaultId = uid();
-    state.vaults.push({ id: state.vaultId, name: name, blob: null, updatedAt: Date.now(), lastExportAt: null });
+    state.vaults.push({ id: state.vaultId, name: name, blob: null, updatedAt: Date.now(), lastExportAt: null, fileName: null });
     return saveBlob();
   }).then(function(){
     enterMain();

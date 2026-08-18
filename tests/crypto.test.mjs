@@ -56,6 +56,9 @@ test('buildBlob: полный путь с реальными 1.2M итераци
   assert.equal(blob.salt, saltB64);
   assert.equal(typeof blob.iv, 'string');
   assert.equal(typeof blob.ct, 'string');
+  // «когда сохранён» пишется прямо в блоб (для показа при импорте)
+  assert.equal(typeof blob.savedAt, 'string');
+  assert.ok(!Number.isNaN(Date.parse(blob.savedAt)));
 
   const dec = await sandbox.decryptWithKey(blob, key);
   assert.deepEqual(clone(dec), vault);
