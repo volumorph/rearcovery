@@ -177,7 +177,8 @@
       <button class="btn secondary" id="btn-check-update" onclick="checkUpdates()">🔍 Проверить обновления</button>
       <span id="about-update" style="display:inline-block;margin:8px 0 0 0;font-size:13px;color:var(--muted);vertical-align:middle"></span>
     </div>
-    <div class="hint" style="margin-top:8px">Проверка сверяет SHA-256 вашего файла с хэшем последнего релиза на GitHub — это единственный запрос к сети (публичные данные о релизе, ничего из вашего хранилища не отправляется).</div>
+    <div class="hint" style="margin-top:8px">Проверка сверяет SHA-256 вашего файла с хэшем последнего релиза на GitHub — это единственный запрос к сети (публичные данные о релизе, ничего из вашего хранилища не отправляется). В локальной (file://) копии проверка запускается автоматически при открытии этого окна.</div>
+    <div class="hint" style="margin-top:6px">Скачивайте копию кнопкой «⬇️ Скачать локальную копию (HTML)», а не «Сохранить страницу как» в браузере: браузер сохраняет изменённую страницу, байты файла отличаются от опубликованного, и хэш не совпадёт — хотя код будет тот же.</div>
     <div class="form-actions">
       <button class="btn secondary" onclick="copyText($('about-hash').textContent.replace(/\s+/g,''))">Копировать хэш</button>
       <span class="spacer"></span>

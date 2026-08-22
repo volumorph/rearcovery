@@ -94,6 +94,12 @@ function openAbout(){
   sourceText().then(computeHash).then(function(h){
     ABOUT_HASH = h;
     $('about-hash').textContent = h;
+    if(location.protocol === 'file:'){
+      // локальная копия: сразу сверяем с последним релизом, не дожидаясь кнопки.
+      // Браузерный «Сохранить страницу как» меняет байты файла (хотя код тот же),
+      // и пользователь без этой сверки видит непонятное расхождение хэшей.
+      checkUpdates();
+    }
   }).catch(function(){
     ABOUT_HASH = null;
     $('about-hash').textContent = 'не удалось вычислить';
@@ -117,7 +123,7 @@ function checkUpdates(){
         if(myHash && latestHash && myHash === latestHash){
           done('✅ Вы запускаете последнюю опубликованную версию (<b>' + esc(tag) + '</b>) — обновление не нужно.');
         } else if(myHash && latestHash){
-          done('⚠️ Доступна новая версия <b>' + esc(tag) + '</b> — ваш файл отличается от опубликованного. Обновите локальную копию: <a href="' + releasesUrl + '" target="_blank" rel="noopener">открыть релизы</a> или «⬇️ Скачать локальную копию» на веб-версии.');
+          done('⚠️ Ваш файл отличается от релиза <b>' + esc(tag) + '</b> (хэши не совпадают). Частая причина: копия сохранена через браузер («Сохранить страницу как») — код тогда тот же, но байты другие; скачайте заново кнопкой «⬇️ Скачать локальную копию (HTML)» в веб-версии. Устаревшая копия или подмена файла тоже дают расхождение. <a href="' + releasesUrl + '" target="_blank" rel="noopener">Открыть релизы</a>');
         } else if(tag){
           done('Последняя версия на GitHub: <b>' + esc(tag) + '</b>. <a href="' + releasesUrl + '" target="_blank" rel="noopener">Открыть релизы</a>');
         } else {
