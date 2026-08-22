@@ -55,6 +55,12 @@ function lintSerialization(t) {
   if (sgl) problems.push('атрибуты в одинарных кавычках (пишите двойные): ' + sgl.join(', '));
   const amp = markup.match(/&(?!(amp|lt|gt|quot|nbsp|#\d+|#x[0-9a-fA-F]+);)/g);
   if (amp) problems.push('сырой & вне сущности: ' + amp.join(' '));
+  // скобки < > внутри значений атрибутов: часть браузеров (Firefox, некоторые
+  // сборки Chromium) сериализует их как &lt;/&gt;, часть — нет → DOM-сериализация
+  // не будет байт-в-байт равна файлу (расхождение хэша в file://-копиях).
+  // data-URI кодируй percent-экранированием (%3C/%3E).
+  const ltgt = markup.match(/=\s*"[^"]*[<>][^"]*"/g);
+  if (ltgt) problems.push('угловые скобки в значении атрибута (кодируйте %3C/%3E): ' + ltgt.join(', '));
   return problems;
 }
 const lint = lintSerialization(template);
