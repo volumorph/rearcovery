@@ -29,6 +29,11 @@ jobs:
       - name: Run tests
         run: node --test
 
+      - name: Inject release version into build
+        # версия вшивается в файл ДО расчёта хэша и публикации: она попадает
+        # и в локальные копии (file://), и в опубликованный хэш
+        run: PVG_VERSION="v1.0.${{ github.run_number }}" node build.mjs
+
       - name: Compute SHA-256
         id: hash
         run: echo "sha=$(sha256sum password-guide.html | awk '{print $1}')" >> "$GITHUB_OUTPUT"

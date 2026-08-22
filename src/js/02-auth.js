@@ -23,9 +23,11 @@ function boot(){
     alert('Ваш браузер не поддерживает Web Crypto API (нужен современный Chrome/Firefox/Edge).');
     return;
   }
-  renderModeBadge();
-  // исходная копия DOM до отрисовки — нужна для «скачать локальную копию» при file://
+  // исходная копия DOM ДО любых динамических изменений (плашка режима и т.п.) —
+  // нужна для «скачать локальную копию» и хэша в file://-копии: только так
+  // сериализация DOM байт-в-байт совпадает с файлом и хэш совпадает с опубликованным
   APP_SOURCE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  renderModeBadge();
   if(!localStorage.getItem(LS_VAULTS)) migrateLegacy();
   state.vaults = loadVaults();
   if(state.vaults.length){

@@ -82,14 +82,15 @@ function openAbout(){
   $('about-update').innerHTML = '';
   openModal('modal-about');
   if(location.protocol === 'http:' || location.protocol === 'https:'){
-    // версия из файла VERSION на том же сайте (для локальной копии не нужен)
+    // версия из файла VERSION на том же сайте — подстраховка для старых
+    // опубликованных файлов, где APP_VERSION ещё не вшита в сборку
     fetch('./VERSION', { cache: 'no-store' }).then(function(r){ if(!r.ok) throw new Error('no version file'); return r.text(); }).then(function(t){
       var v = (t || '').trim();
       if(v) $('about-version').textContent = v;
     }).catch(function(){});
-  } else {
-    $('about-version').textContent = APP_VERSION + ' (локальная копия)';
   }
+  // локальная (file://) копия показывает версию, вшитую в сам файл при сборке —
+  // никакой заглушки «(локальная копия)» больше нет
   sourceText().then(computeHash).then(function(h){
     ABOUT_HASH = h;
     $('about-hash').textContent = h;
