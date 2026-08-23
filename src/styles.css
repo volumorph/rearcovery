@@ -175,6 +175,10 @@ code,.pw{font-family:ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;font-
 /* тёмные карточки аккаунтов в панели */
 #workspace .acc-toolbar .title{color:var(--g-ink)}
 #workspace .btn-mini.active{background:#3a5cc0;border-color:#5b8cff;color:#fff}
+#workspace .btn-mini.done{background:#1e3a2a;border-color:#3f9d5f;color:#7fd9a0}
+#workspace .btn-mini.done:hover{border-color:#3f9d5f;color:#7fd9a0}
+.btn-mini:disabled{opacity:.55;cursor:not-allowed}
+.btn-mini.done:disabled{opacity:1;cursor:default}
 .stream-overlay{display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;color:var(--g-muted);padding:24px}
 .stream-overlay .stream-ico{font-size:44px}
 .stream-overlay .stream-txt{font-size:15px;font-weight:700;color:var(--g-ink)}

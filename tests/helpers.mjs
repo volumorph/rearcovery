@@ -41,7 +41,7 @@ function makeClassList() {
 
 function makeElement() {
   return {
-    value: '', textContent: '', innerHTML: '', checked: false, files: [],
+    value: '', textContent: '', innerHTML: '', checked: false, disabled: false, files: [],
     style: {}, dataset: {},
     classList: makeClassList(),
     addEventListener() {}, removeEventListener() {},

@@ -175,6 +175,7 @@ function enterMain(){
   initAccountsList();
   renderAccounts();
   renderGuide();
+  updateStrengthenButton();
   switchPanel('accounts');
   setStatus('Разблокировано в ' + nowTime());
   refreshBackupStatus();
@@ -223,7 +224,28 @@ function openChangePass(){
   openModal('modal-change-pass');
 }
 
+function isStrengthened(){
+  return !!(state.blob && state.blob.iterations >= KDF_ITERATIONS);
+}
+/* Кнопка «Укрепить шифрование»: когда уже на максимуме (1.2M) — показываем
+ * «значок горит» (зелёный done) и блокируем повторное укрепление. */
+function updateStrengthenButton(){
+  var btn = $('btn-strengthen');
+  if(!btn) return;
+  var done = isStrengthened();
+  btn.disabled = done;
+  btn.classList.toggle('done', done);
+  btn.textContent = done ? '🛡 Шифрование укреплено' : '🛡 Укрепить шифрование';
+  btn.title = done
+    ? 'Уже на максимальной мощности: PBKDF2 · ' + (KDF_ITERATIONS / 1000000) + 'M итераций'
+    : 'Поднять стоимость подбора ключа: PBKDF2 ' + ((state.blob && state.blob.iterations || 0) / 1000000) + 'M → ' + (KDF_ITERATIONS / 1000000) + 'M итераций';
+}
+
 function openStrengthenKdf(){
+  if(isStrengthened()){
+    toast('Шифрование уже укреплено: PBKDF2 · ' + (KDF_ITERATIONS / 1000000) + 'M итераций');
+    return;
+  }
   $('st-pass').value = '';
   $('st-err').textContent = '';
   openModal('modal-strengthen');
@@ -250,6 +272,7 @@ function doChangePass(){
     .then(function(){
       closeModal('modal-change-pass');
       toast('Мастер-пароль изменён');
+      updateStrengthenButton();
     })
     .catch(function(){ err.textContent = 'Текущий пароль неверен.'; });
 }
@@ -274,6 +297,7 @@ function doStrengthenKdf(){
     .then(function(){
       closeModal('modal-strengthen');
       toast('Шифрование укреплено: PBKDF2 · ' + (KDF_ITERATIONS / 1000000) + 'M итераций');
+      updateStrengthenButton();
     })
     .catch(function(){ err.textContent = 'Неверный мастер-пароль.'; });
 }

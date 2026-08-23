@@ -221,4 +221,15 @@ test('seed: ссылка и предупреждение на экране вх�
   assert.equal(doc.el('unlock-seed-warn').classList.contains('hidden'), true, 'без хранилищ предупреждения нет');
 });
 
+test('seed: предупреждение в панели «Путеводитель» следует за состоянием seed', () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.state.seedWrap = null;
+  sandbox.updateGuideSeedWarn();
+  assert.equal(doc.el('guide-seed-warn').classList.contains('hidden'), false, 'видно при выключенном seed');
+
+  sandbox.state.seedWrap = { iv: 'x', ct: 'y' };
+  sandbox.updateGuideSeedWarn();
+  assert.equal(doc.el('guide-seed-warn').classList.contains('hidden'), true, 'скрыто при включённом seed');
+});
+
 function cloneVault(v) { return JSON.parse(JSON.stringify(v)); }

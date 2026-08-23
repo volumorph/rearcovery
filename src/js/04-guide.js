@@ -149,6 +149,7 @@ function onGuideSearch(v){
 }
 
 function renderGuide(){
+  if(typeof updateGuideSeedWarn === 'function') updateGuideSeedWarn();
   var accounts = guideFilteredAccounts();
   var q = guideSearchQuery();
   if(state.currentAccountId && !accounts.some(function(a){ return a.id === state.currentAccountId; })){

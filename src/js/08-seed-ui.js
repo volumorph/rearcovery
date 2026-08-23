@@ -1,5 +1,12 @@
 /* ================= Seed-фраза: интерфейс ================= */
 /* Настройка (тулбар «🌱 Seed-фраза»), отключение, восстановление с экрана входа. */
+/* Предупреждение «seed не настроен» в панели «Путеводитель» (после разблокировки) */
+function updateGuideSeedWarn(){
+  var el = $('guide-seed-warn');
+  if(!el) return;
+  el.classList.toggle('hidden', !!(state.seedWrap && state.seedWrap.ct));
+}
+
 function updateSeedUnlockLink(){
   var el = $('unlock-seed-link');
   var warn = $('unlock-seed-warn');
@@ -117,6 +124,7 @@ function doSeedSetupConfirm(){
     .then(function(){
       state.seedPending = null;
       closeModal('modal-seed');
+      updateGuideSeedWarn();
       toast('Seed-фраза настроена. Храните её в надёжном месте.');
     })
     .catch(function(e){
@@ -143,6 +151,7 @@ function doSeedRemove(){
     })
     .then(function(){
       closeModal('modal-seed');
+      updateGuideSeedWarn();
       toast('Seed-восстановление отключено. Фраза больше не сможет открыть хранилище.');
     })
     .catch(function(){ err.textContent = 'Неверный мастер-пароль.'; })

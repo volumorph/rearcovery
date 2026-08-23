@@ -102,7 +102,7 @@
           <button class="btn-mini" onclick="doExport()">⬇ Экспорт</button>
           <button class="btn-mini" onclick="openImport()">⬆ Импорт</button>
           <button class="btn-mini" onclick="openChangePass()">🔑 Сменить пароль</button>
-          <button class="btn-mini" onclick="openStrengthenKdf()">🛡 Укрепить шифрование</button>
+          <button class="btn-mini" id="btn-strengthen" onclick="openStrengthenKdf()">🛡 Укрепить шифрование</button>
           <button class="btn-mini" onclick="openSeedModal()">🌱 Seed-фраза</button>
           <button class="btn-mini danger" onclick="lock()">🔒 Заблокировать</button>
           <span class="sep"></span>
@@ -150,6 +150,7 @@
           <div id="accounts-list"></div>
         </div>
         <div id="panel-guide" class="panel-body hidden">
+          <div class="note warn hidden" id="guide-seed-warn">⚠️ Восстановление по seed-фразе не настроено. Если забудете мастер-пароль — данные будут потеряны безвозвратно.</div>
           <div class="guide-select-row">
             <label class="label" style="margin:0" for="guide-select">Маршрут для аккаунта:</label>
             <select id="guide-select" onchange="guideSelect(this.value)"></select>

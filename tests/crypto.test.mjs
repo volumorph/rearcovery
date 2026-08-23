@@ -108,6 +108,29 @@ test('kdf: re-KDF 600k → 1.2M через doStrengthenKdf', async () => {
   assert.deepEqual(clone(await sandbox.decryptWithKey(newBlob, newKey)), vault);
 });
 
+/* ================= 1b. кнопка «Укрепить шифрование» ================= */
+
+test('укрепление: кнопка доступна при 600k и блокируется («горит»), когда уже 1.2M', () => {
+  const { sandbox, doc } = loadApp();
+
+  sandbox.state.blob = { iterations: 600000 };
+  sandbox.updateStrengthenButton();
+  assert.equal(doc.el('btn-strengthen').disabled, false);
+  assert.equal(doc.el('btn-strengthen').classList.contains('done'), false);
+  assert.match(doc.el('btn-strengthen').textContent, /Укрепить шифрование/);
+
+  sandbox.state.blob = { iterations: 1200000 };
+  sandbox.updateStrengthenButton();
+  assert.equal(doc.el('btn-strengthen').disabled, true, 'повторное укрепление заблокировано');
+  assert.equal(doc.el('btn-strengthen').classList.contains('done'), true, 'значок «горит»');
+  assert.match(doc.el('btn-strengthen').textContent, /укреплено/);
+  assert.equal(sandbox.isStrengthened(), true);
+
+  // без блоба — не считается укреплённым
+  sandbox.state.blob = null;
+  assert.equal(sandbox.isStrengthened(), false);
+});
+
 /* ================= 2. validBlob ================= */
 
 test('validBlob: принимает корректный блоб и отклоняет повреждённые', () => {
