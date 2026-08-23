@@ -221,6 +221,33 @@ test('seed: ссылка и предупреждение на экране вх�
   assert.equal(doc.el('unlock-seed-warn').classList.contains('hidden'), true, 'без хранилищ предупреждения нет');
 });
 
+test('seed: проверка слов — подписи полей соответствуют проверяемым словам', async () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.event = {};
+  await setupV1Vault(sandbox, 'мастер');
+
+  // несколько прогонов: порядок случайных слов каждый раз новый, и если бы
+  // подписи строились из несортированного пула, рано или поздно они разошлись
+  // бы с порядком сравнения и «правильный ввод» не проходил бы
+  for (let run = 0; run < 5; run++) {
+    doc.el('seed-pass').value = 'мастер';
+    await sandbox.doSeedGenerate();
+    const words = sandbox.state.seedPending.phrase.split(' ');
+    await sandbox.doSeedVerifyStart();
+    const ask = sandbox.state.seedPending.ask;
+    const html = doc.el('seed-verify-inputs').innerHTML;
+    // k-е поле подписано «Слово №ask[k]+1» и сравнивается со словом words[ask[k]]
+    ask.forEach((idx, k) => {
+      assert.ok(html.includes('Слово №' + (idx + 1) + '</label>'), 'поле ' + k + ' подписано «Слово №' + (idx + 1) + '»');
+      assert.ok(html.includes('id="seed-vi-' + k + '"'), 'поле ' + k + ' имеет id seed-vi-' + k);
+    });
+    // ввод по подписям (номер → слово) проходит
+    ask.forEach((idx, k) => { doc.el('seed-vi-' + k).value = words[idx]; });
+    await sandbox.doSeedSetupConfirm();
+  }
+  assert.equal(sandbox.state.vaults[0].blob.version, 2, 'seed включается при вводе по подписям');
+});
+
 test('seed: предупреждение в панели «Путеводитель» следует за состоянием seed', () => {
   const { sandbox, doc } = loadApp();
   sandbox.state.seedWrap = null;
