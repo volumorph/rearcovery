@@ -221,6 +221,38 @@ test('seed: ссылка и предупреждение на экране вх�
   assert.equal(doc.el('unlock-seed-warn').classList.contains('hidden'), true, 'без хранилищ предупреждения нет');
 });
 
+test('seed: копирование фразы — с подтверждением, секретом и автоочисткой', async () => {
+  const { sandbox, doc } = loadApp();
+  let written = '';
+  sandbox.navigator.clipboard = {
+    writeText(t) { written = String(t); return Promise.resolve(); },
+    readText() { return Promise.resolve(written); },
+  };
+  const phrase = 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu';
+  sandbox.state.seedPending = { phrase };
+
+  sandbox.copySeedPhrase();
+  await Promise.resolve(); await Promise.resolve(); // дождаться writeText().then(done)
+  assert.equal(written, phrase, 'фраза скопирована');
+  assert.match(doc.el('toast').textContent, /буфер очистится через 30 с/);
+
+  // отмена подтверждения — не копирует
+  sandbox.confirm = () => false;
+  written = '';
+  sandbox.copySeedPhrase();
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(written, '', 'отмена — ничего не скопировано');
+
+  // без активной фразы — подсказка, ничего не пишем
+  sandbox.confirm = () => true;
+  sandbox.state.seedPending = null;
+  written = '';
+  sandbox.copySeedPhrase();
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(written, '');
+  assert.match(doc.el('toast').textContent, /сгенерируйте новую/);
+});
+
 test('seed: проверка слов — подписи полей соответствуют проверяемым словам', async () => {
   const { sandbox, doc } = loadApp();
   sandbox.event = {};

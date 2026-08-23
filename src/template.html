@@ -320,6 +320,7 @@
     <div id="seed-step-show" class="hidden">
       <p style="color:var(--muted);font-size:14px">Запишите фразу. Она показывается <b>один раз</b> — после закрытия окна увидеть её снова будет нельзя. С помощью неё можно получить доступ к хранилищу, если забыт мастер-пароль.</p>
       <div id="seed-words" style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0"></div>
+      <div style="margin-top:4px"><button class="btn-mini" onclick="copySeedPhrase()">📋 Скопировать фразу</button> <span style="font-size:12px;color:var(--muted)">буфер очистится через 30 с</span></div>
       <div class="form-actions">
         <button class="btn" onclick="doSeedVerifyStart()">Я записал(а) фразу — проверить</button>
         <span class="spacer"></span>

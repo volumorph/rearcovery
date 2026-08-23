@@ -60,6 +60,15 @@ function doSeedGenerate(){
     .finally(function(){ btn.disabled = false; btn.textContent = '🌱 Сгенерировать фразу'; });
 }
 
+/* Копирование фразы в буфер с подтверждением: фраза — второй полный ключ,
+ * поэтому копируем через copyText({secret:true}) — буфер очистится через 30 с */
+function copySeedPhrase(){
+  var phrase = state.seedPending && state.seedPending.phrase;
+  if(!phrase){ toast('Фраза больше не доступна — сгенерируйте новую.'); return; }
+  if(!confirm('Фраза — второй полный ключ от хранилища. Буфер читаем другими приложениями, но он очистится через 30 секунд. Скопировать?')) return;
+  copyText(phrase, { secret: true });
+}
+
 function doSeedVerifyStart(){
   var words = state.seedPending.phrase.split(' ');
   var pool = [];
