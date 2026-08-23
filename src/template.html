@@ -52,6 +52,7 @@
       <button class="btn secondary" style="width:100%;margin-top:12px" onclick="openImport()">📥 Импорт бэкапа (.json)</button>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn secondary dl-copy-btn" style="flex:1" onclick="downloadLocalCopy()">⬇️ Скачать копию</button>
+        <button class="btn secondary" style="flex:1" onclick="openSettings()">⚙ Настройки</button>
         <button class="btn secondary" style="flex:1" onclick="openAbout()">ℹ️ О приложении</button>
       </div>
       <div id="setup-back" class="hidden" style="margin-top:12px;text-align:center"><button class="btn secondary" onclick="backToUnlock()">← К списку хранилищ</button></div>
@@ -85,6 +86,7 @@
       </div>
       <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap">
         <button class="btn-mini dl-copy-btn" onclick="downloadLocalCopy()">⬇️ Скачать локальную копию (HTML)</button>
+        <button class="btn-mini" onclick="openSettings()">⚙ Настройки</button>
         <button class="btn-mini" onclick="openAbout()">ℹ️ О приложении</button>
       </div>
       <div class="note">💾 Перенос на новый ПК: скопируйте этот HTML-файл и файл-бэкапы (.json, кнопка «Экспорт»), откройте HTML и импортируйте файлы. Импорт добавляет хранилище в список, ничего не перезаписывая.</div>
@@ -116,6 +118,7 @@
           <button class="btn-mini" onclick="fitView()">⤢ Вписать</button>
           <button class="btn-mini" id="btn-stream" onclick="toggleStreamMode()">🙈 Скрыть данные</button>
           <span class="hint">Клик по узлу — данные · перетаскивание узлов · сокеты — связи · колесо — масштаб · фон — панорама · Del — разорвать · двойной клик — изменить</span>
+          <button class="btn-mini" onclick="openSettings()">⚙ Настройки</button>
           <button class="btn-mini" onclick="openAbout()">ℹ️ О приложении</button>
         </div>
         <div class="graph-stage">
@@ -321,7 +324,7 @@
     <div id="seed-step-show" class="hidden">
       <p style="color:var(--muted);font-size:14px">Запишите фразу. Она показывается <b>один раз</b> — после закрытия окна увидеть её снова будет нельзя. С помощью неё можно получить доступ к хранилищу, если забыт мастер-пароль.</p>
       <div id="seed-words" style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0"></div>
-      <div style="margin-top:4px"><button class="btn-mini" onclick="copySeedPhrase()">📋 Скопировать фразу</button> <span style="font-size:12px;color:var(--muted)">буфер очистится через 30 с</span></div>
+      <div style="margin-top:4px"><button class="btn-mini" onclick="copySeedPhrase()">📋 Скопировать фразу</button> <span id="seed-copy-hint" style="font-size:12px;color:var(--muted)">буфер очистится через 30 с</span></div>
       <div class="form-actions">
         <button class="btn" onclick="doSeedVerifyStart()">Я записал(а) фразу — проверить</button>
         <span class="spacer"></span>
@@ -395,6 +398,50 @@
       <button class="btn secondary" onclick="closeModal('modal-clone')">Отмена</button>
     </div>
     <div class="err" id="clone-err"></div>
+  </div>
+</div>
+
+<!-- ===== МОДАЛКА: генератор ===== -->
+<!-- ===== МОДАЛКА: настройки ===== -->
+<div id="modal-settings" class="overlay hidden">
+  <div class="modal-panel" style="max-width:480px">
+    <h2>⚙ Настройки</h2>
+    <div class="field">
+      <label for="set-theme">Тема оформления</label>
+      <select id="set-theme">
+        <option value="dark">Тёмная</option>
+        <option value="light">Светлая</option>
+        <option value="system">Как в системе</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="set-idle">Автоблокировка при бездействии</label>
+      <select id="set-idle">
+        <option value="0">Выключена</option>
+        <option value="1">1 минута</option>
+        <option value="5">5 минут</option>
+        <option value="15">15 минут</option>
+        <option value="30">30 минут</option>
+        <option value="60">1 час</option>
+      </select>
+      <div class="hint">Если хранилище открыто и вы не касаетесь клавиатуры/мыши указанное время — приложение автоматически заблокируется.</div>
+    </div>
+    <div class="field">
+      <label for="set-clip">Очистка буфера после копирования пароля</label>
+      <select id="set-clip">
+        <option value="0">Не очищать</option>
+        <option value="10">Через 10 секунд</option>
+        <option value="30">Через 30 секунд</option>
+        <option value="60">Через 1 минуту</option>
+        <option value="120">Через 2 минуты</option>
+      </select>
+      <div class="hint">Буфер очищается, только если в нём всё ещё лежит скопированный секрет — чужие данные не затираются.</div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="saveSettingsForm()">Сохранить</button>
+      <span class="spacer"></span>
+      <button class="btn secondary" onclick="closeModal('modal-settings')">Отмена</button>
+    </div>
   </div>
 </div>
 

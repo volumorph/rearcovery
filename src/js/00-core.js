@@ -28,6 +28,7 @@ var state = {
   pendingAction: null,   // {action:'delete'|'edit', accountId} — ожидает подтверждения мастер-паролем
   streamMode: false,     // «режим стрима»: скрывает имена/данные на графе и в панели
   dirty: false,          // были ли изменения данных с последнего сохранения
+  settings: null,        // {theme, idleMin, clipSec} — из localStorage (см. 09-settings.js)
 };
 
 /* ================= Утилиты ================= */
@@ -134,7 +135,6 @@ function toast(msg, ms){
   toastTimer = setTimeout(function(){ t.classList.remove('show'); }, ms || 2200);
 }
 
-var CLIPBOARD_CLEAR_MS = 30000;   // через сколько очищать буфер после копирования пароля
 var clipboardTimer = null;
 var clipboardSecret = null;
 function clearClipboardIfSecret(){
@@ -154,15 +154,17 @@ function clearClipboardIfSecret(){
   });
 }
 function scheduleClipboardClear(secret){
+  var ms = clipClearMs();
+  if(!ms){ clipboardSecret = null; return; } // очистка выключена в настройках
   clipboardSecret = secret;
   clearTimeout(clipboardTimer);
-  clipboardTimer = setTimeout(clearClipboardIfSecret, CLIPBOARD_CLEAR_MS);
+  clipboardTimer = setTimeout(clearClipboardIfSecret, ms);
 }
 function copyText(t, opts){
   if(!t){ return; }
   opts = opts || {};
   function done(){
-    toast(opts.secret ? 'Скопировано · буфер очистится через 30 с' : 'Скопировано');
+    toast(opts.secret ? 'Скопировано · ' + clipClearLabel() : 'Скопировано');
     if(opts.secret) scheduleClipboardClear(t);
   }
   function fallback(){

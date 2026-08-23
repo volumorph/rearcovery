@@ -203,3 +203,58 @@ code,.pw{font-family:ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;font-
 
 .seed-word{display:inline-flex;align-items:center;gap:5px;background:var(--card2,#f1f5f9);border:1px solid var(--line,#e2e8f0);border-radius:8px;padding:6px 10px;font-size:13.5px}
 .seed-word b{color:var(--muted,#64748b);font-weight:600}
+
+/* ===== Единая тёмная тема (html[data-theme="dark"]) =====
+ * Переключается в «⚙ Настройки»: тёмная / светлая / как в системе.
+ * Рабочее поле (граф) тёмное всегда (стиль Send Nodes); тёмная тема
+ * докрашивает экраны входа и модалки в тот же тёмный тон. */
+html[data-theme="dark"]{
+  --bg:#1b1e23;
+  --card:#23262b;
+  --card2:#2b2f35;
+  --ink:#e6ebf2;
+  --muted:#9aa4b1;
+  --accent:#5b8cff;
+  --accent-d:#4a7bef;
+  --danger:#e07070;
+  --ok:#4caf7d;
+  --warn:#e0913b;
+  --line:#3a4149;
+  color-scheme:dark;
+}
+html[data-theme="dark"] body{background:var(--bg);color:var(--ink)}
+html[data-theme="dark"] input,html[data-theme="dark"] textarea,html[data-theme="dark"] select{background:var(--card2);border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] input::placeholder,html[data-theme="dark"] textarea::placeholder{color:#7a8493}
+html[data-theme="dark"] .btn.secondary{background:var(--card2);color:var(--ink);border-color:var(--line)}
+html[data-theme="dark"] .btn.secondary:hover{border-color:var(--accent);color:#bcd0ff}
+html[data-theme="dark"] .btn.danger{background:var(--card2);color:var(--danger);border-color:#5c3a3a}
+html[data-theme="dark"] .btn-mini{background:var(--card2);border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .btn-mini:hover{border-color:var(--accent);color:#bcd0ff}
+html[data-theme="dark"] .btn-mini.danger:hover{border-color:#e07070;color:#f2a8a8}
+html[data-theme="dark"] .auth-card{background:var(--card);border-color:var(--line);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+html[data-theme="dark"] .mode-badge.mode-online{color:#8ab6ff;background:#22314f;border-color:#3a5480}
+html[data-theme="dark"] .mode-badge.mode-offline{color:#7fdc9a;background:#1f3327;border-color:#33523d}
+html[data-theme="dark"] .note{background:#20283a;border-color:#34415e;color:#a9c1ee}
+html[data-theme="dark"] .note.warn{background:#382d1d;border-color:#5c4a33;color:#ecc98f}
+html[data-theme="dark"] .vault-card{background:var(--card2);border-color:var(--line)}
+html[data-theme="dark"] .vault-card:hover{border-color:var(--accent)}
+html[data-theme="dark"] .vault-card.selected{background:#2c3650;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+html[data-theme="dark"] .acc-toolbar input[type=search],html[data-theme="dark"] .side-panel input[type=search],html[data-theme="dark"] .guide-select-row select{background:var(--card2);border-color:var(--line);color:var(--ink)}
+html[data-theme="dark"] .badge{background:#2c3650;color:#a9c1ee}
+html[data-theme="dark"] .badge.warn,html[data-theme="dark"] .risk.dup{background:#3a3524;border-color:#5c5233;color:#e8dc96}
+html[data-theme="dark"] code,html[data-theme="dark"] .pw,html[data-theme="dark"] .kv pre{background:#31363d;color:#dde4ee}
+html[data-theme="dark"] .empty{background:var(--card2);border-color:var(--line);color:var(--muted)}
+html[data-theme="dark"] .overlay{background:rgba(0,0,0,.62)}
+html[data-theme="dark"] .modal-panel{background:var(--card);border:1px solid var(--line);box-shadow:0 18px 50px rgba(0,0,0,.6)}
+html[data-theme="dark"] .modal-close:hover{background:rgba(255,255,255,.08)}
+html[data-theme="dark"] .subhead{color:#a9c1ee;border-bottom-color:var(--line)}
+html[data-theme="dark"] .hint,html[data-theme="dark"] .acc-meta,html[data-theme="dark"] .guide-search-info{color:var(--muted)}
+html[data-theme="dark"] .risk{background:#3a2a2a;border-color:#5c3a3a;color:#f2b6b6}
+html[data-theme="dark"] .risk.cycle{background:#3d3024;border-color:#5c4a33;color:#ecc98f}
+html[data-theme="dark"] .ok-line{background:#23362a;border-color:#3a5c44;color:#a3d8b2}
+html[data-theme="dark"] .kv>span{color:var(--muted)}
+html[data-theme="dark"] .seed-word{background:var(--card2);border-color:var(--line)}
+html[data-theme="dark"] .field label{color:var(--muted)}
+html[data-theme="dark"] .sub{color:var(--muted)}
+html[data-theme="dark"] .vault-meta{color:var(--muted)}
+html[data-theme="dark"] .modal-panel p{color:var(--muted)}

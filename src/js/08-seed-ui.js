@@ -27,6 +27,8 @@ function openSeedModal(){
   $('seed-pass').value = '';
   $('seed-err').textContent = '';
   $('seed-verify-err').textContent = '';
+  var hint = $('seed-copy-hint');
+  if(hint) hint.textContent = clipClearLabel();
   var active = !!(state.vault && state.vault.seedEnabled);
   $('seed-state-note').innerHTML = active
     ? 'Seed-восстановление <b>активно</b>: фраза из 12 слов позволяет получить доступ к хранилищу, если забыт мастер-пароль. Фраза — второй полный ключ, храните её офлайн.'
@@ -65,7 +67,7 @@ function doSeedGenerate(){
 function copySeedPhrase(){
   var phrase = state.seedPending && state.seedPending.phrase;
   if(!phrase){ toast('Фраза больше не доступна — сгенерируйте новую.'); return; }
-  if(!confirm('Фраза — второй полный ключ от хранилища. Буфер читаем другими приложениями, но он очистится через 30 секунд. Скопировать?')) return;
+  if(!confirm('Фраза — второй полный ключ от хранилища. Буфер читаем другими приложениями, но ' + clipClearLabel() + '. Скопировать?')) return;
   copyText(phrase, { secret: true });
 }
 

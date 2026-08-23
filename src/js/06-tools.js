@@ -215,19 +215,21 @@ function regen(){
   $('gen-out').value = generatePassword();
 }
 
-/* ================= Автоблокировка ================= */
+/* ================= Автоблокировка =================
+ * Таймаут берётся из настроек (state.settings.idleMin, см. 09-settings.js);
+ * перечитывается на каждом тике, поэтому смена настройки применяется сразу. */
 var lastActive = Date.now();
-var IDLE_MS = 15 * 60 * 1000;
 function markActive(){ lastActive = Date.now(); }
 ['click','keydown','mousemove','touchstart','scroll'].forEach(function(ev){
   window.addEventListener(ev, markActive, { passive: true });
 });
 function startIdleWatch(){
   setInterval(function(){
-    if(state.vault && Date.now() - lastActive > IDLE_MS){
+    var ms = idleMs();
+    if(ms > 0 && state.vault && Date.now() - lastActive > ms){
       lock();
     }
-  }, 30000);
+  }, 10000);
 }
 
 /* ================= Запуск ================= */

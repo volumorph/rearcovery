@@ -33,6 +33,9 @@ function boot(){
   // сериализация DOM байт-в-байт совпадает с файлом и хэш совпадает с опубликованным
   APP_SOURCE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
   initModalCloseButtons(); // после захвата APP_SOURCE — не влияет на сериализацию/хэш
+  loadSettings();          // настройки до применения темы (тема мутирует <html>, поэтому строго после APP_SOURCE)
+  applyTheme();
+  initThemeListener();
   renderModeBadge();
   if(!localStorage.getItem(LS_VAULTS)) migrateLegacy();
   state.vaults = loadVaults();

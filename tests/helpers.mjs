@@ -64,7 +64,13 @@ function makeDocument() {
     createElement() { return makeElement(); },
     createElementNS() { return makeElement(); },
     activeElement: null,
-    documentElement: { outerHTML: '<html></html>' },
+    documentElement: {
+      outerHTML: '<html></html>',
+      dataset: {},
+      setAttribute(k, v) { this.dataset[k] = String(v); },
+      getAttribute(k) { return k in this.dataset ? this.dataset[k] : null; },
+      removeAttribute(k) { delete this.dataset[k]; },
+    },
     body: { appendChild() {} },
     execCommand() { return false; },
   };
@@ -89,6 +95,7 @@ export function loadApp() {
   own('console', globalThis.console);
   own('navigator', {});
   own('location', { href: 'file:///password-guide.html', protocol: 'file:' });
+  own('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
   own('alert', () => {});
   own('confirm', () => true);
   own('prompt', () => null);
