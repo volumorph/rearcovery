@@ -174,7 +174,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: О приложении ===== -->
-<div id="modal-about" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-about')">
+<div id="modal-about" class="overlay hidden">
   <div class="modal-panel" style="max-width:540px">
     <h2>ℹ️ О приложении</h2>
     <div class="field" style="margin-bottom:8px"><label>Версия</label><code id="about-version">—</code></div>
@@ -195,7 +195,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: редактор аккаунта ===== -->
-<div id="modal-editor" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-editor')">
+<div id="modal-editor" class="overlay hidden">
   <div class="modal-panel">
     <h2 id="editor-title">Аккаунт</h2>
     <form id="editor-form" onsubmit="event.preventDefault();saveAccount()"></form>
@@ -203,7 +203,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: подтверждение мастер-паролем (изменение/удаление) ===== -->
-<div id="modal-auth" class="overlay hidden" onclick="if(event.target===this)closeAuthModal()">
+<div id="modal-auth" class="overlay hidden">
   <div class="modal-panel" style="max-width:430px">
     <h2 id="auth-title">Подтверждение мастер-паролем</h2>
     <p id="auth-msg" style="color:var(--muted);font-size:14px"></p>
@@ -222,7 +222,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: экспорт ===== -->
-<div id="modal-export" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-export')">
+<div id="modal-export" class="overlay hidden">
   <div class="modal-panel">
     <h2>Экспорт — файл-бэкап</h2>
     <p style="color:var(--muted);font-size:14px">Файл-бэкап содержит ваши данные в зашифрованном виде. Сохраните его туда, где он не потеряется, — это единственный способ перенести хранилище на другой компьютер.</p>
@@ -236,7 +236,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: импорт ===== -->
-<div id="modal-import" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-import')">
+<div id="modal-import" class="overlay hidden">
   <div class="modal-panel">
     <h2>Импорт хранилища</h2>
     <p style="color:var(--muted);font-size:14px">Импорт добавит хранилище в список и не затронет существующие. После импорта введите мастер-пароль этого файла — данные появятся после разблокировки.</p>
@@ -257,7 +257,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: смена мастер-пароля ===== -->
-<div id="modal-change-pass" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-change-pass')">
+<div id="modal-change-pass" class="overlay hidden">
   <div class="modal-panel">
     <h2>Смена мастер-пароля</h2>
     <div class="field">
@@ -281,7 +281,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: укрепление шифрования ===== -->
-<div id="modal-strengthen" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-strengthen')">
+<div id="modal-strengthen" class="overlay hidden">
   <div class="modal-panel">
     <h2>Укрепить шифрование</h2>
     <p style="color:var(--muted);font-size:14px">Пароль не изменится — только удвоится стоимость подбора ключа (PBKDF2: 600 000 → 1 200 000 итераций). Введите мастер-пароль.</p>
@@ -302,7 +302,7 @@
 
 
 <!-- ===== МОДАЛКА: seed-фраза (настройка/отключение) ===== -->
-<div id="modal-seed" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-seed')">
+<div id="modal-seed" class="overlay hidden">
   <div class="modal-panel" style="max-width:520px">
     <h2>🌱 Seed-фраза восстановления</h2>
     <p id="seed-state-note" style="color:var(--muted);font-size:14px"></p>
@@ -343,7 +343,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: восстановление доступа по seed-фразе ===== -->
-<div id="modal-seed-recover" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-seed-recover')">
+<div id="modal-seed-recover" class="overlay hidden">
   <div class="modal-panel">
     <h2>🔑 Восстановление доступа по seed-фразе</h2>
     <p style="color:var(--muted);font-size:14px">Введите фразу из 12 слов и задайте новый мастер-пароль. Данные останутся прежними.</p>
@@ -369,7 +369,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: копия хранилища под новым паролем ===== -->
-<div id="modal-clone" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-clone')">
+<div id="modal-clone" class="overlay hidden">
   <div class="modal-panel">
     <h2>⧉ Копия хранилища под новым паролем</h2>
     <p style="color:var(--muted);font-size:14px">Создаётся независимая копия всех данных с новым мастер-паролем. Текущее хранилище и его пароль не меняются. Копия появится в списке хранилищ и сразу скачается файлом .json.</p>
@@ -399,7 +399,7 @@
 </div>
 
 <!-- ===== МОДАЛКА: генератор ===== -->
-<div id="modal-generator" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-generator')">
+<div id="modal-generator" class="overlay hidden">
   <div class="modal-panel">
     <h2>Генератор паролей</h2>
     <div class="field">

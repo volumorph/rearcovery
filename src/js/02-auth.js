@@ -27,6 +27,7 @@ function boot(){
   // нужна для «скачать локальную копию» и хэша в file://-копии: только так
   // сериализация DOM байт-в-байт совпадает с файлом и хэш совпадает с опубликованным
   APP_SOURCE = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  initModalCloseButtons(); // после захвата APP_SOURCE — не влияет на сериализацию/хэш
   renderModeBadge();
   if(!localStorage.getItem(LS_VAULTS)) migrateLegacy();
   state.vaults = loadVaults();

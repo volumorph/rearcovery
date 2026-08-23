@@ -187,3 +187,24 @@ function closeModal(id){ $(id).classList.add('hidden'); }
 function closeModals(){
   document.querySelectorAll('.overlay').forEach(function(m){ m.classList.add('hidden'); });
 }
+/* Крестик «✕» на всех модалках. Закрытие только осознанное (✕ / Отмена):
+ * клик по фону больше не закрывает окно. Инжектится в DOM после захвата
+ * APP_SOURCE, поэтому сериализация/хэш файла не затрагиваются. */
+function initModalCloseButtons(){
+  document.querySelectorAll('.overlay').forEach(function(ov){
+    if(ov.dataset.closeBtn) return;
+    ov.dataset.closeBtn = '1';
+    var panel = ov.querySelector('.modal-panel');
+    if(!panel) return;
+    var x = document.createElement('button');
+    x.className = 'modal-close';
+    x.textContent = '✕';
+    x.title = 'Закрыть';
+    x.setAttribute('aria-label', 'Закрыть');
+    x.addEventListener('click', function(){
+      if(ov.id === 'modal-auth') closeAuthModal();
+      else closeModal(ov.id);
+    });
+    panel.appendChild(x);
+  });
+}
