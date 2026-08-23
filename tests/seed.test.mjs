@@ -83,6 +83,76 @@ test('seed: валидация отклоняет битые фразы', async 
   assert.equal(await sandbox.seedPhraseValid('  ' + phrase.replace(/ /g, '  ') + '  '), true);
 });
 
+test('vaultIsV2: формат выводится из блоба/seedWrap, а не из глобального флага', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.blob = { ekPass: 'x' }; sandbox.state.seedWrap = null;
+  assert.equal(sandbox.vaultIsV2(), true, 'ekPass → v2');
+  sandbox.state.blob = {}; sandbox.state.seedWrap = null;
+  assert.equal(sandbox.vaultIsV2(), false, 'чистый v1');
+  sandbox.state.blob = {}; sandbox.state.seedWrap = { iv: 'i', ct: 'c' };
+  assert.equal(sandbox.vaultIsV2(), true, 'активная обёртка seed → v2 (миграция)');
+  sandbox.state.blob = null; sandbox.state.seedWrap = null;
+  assert.equal(sandbox.vaultIsV2(), false, 'без блоба');
+});
+
+test('seed: вкл → выкл → снова вкл работает и перешифровка не падает', async () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.event = {};
+  await setupV1Vault(sandbox, 'мастер');
+
+  await enableSeed(sandbox, doc, 'мастер');
+  doc.el('seed-pass').value = 'мастер';
+  await sandbox.doSeedRemove();
+  assert.ok(!sandbox.state.vaults[0].blob.ekSeed, 'после выкл seed нет');
+  assert.ok(sandbox.state.vaults[0].blob.ekPass, 'v2-формат сохранён (без seed)');
+
+  // снова вкл
+  doc.el('seed-pass').value = 'мастер';
+  await sandbox.doSeedGenerate();
+  const words = sandbox.state.seedPending.phrase.split(' ');
+  await sandbox.doSeedVerifyStart();
+  sandbox.state.seedPending.ask.forEach((idx, k) => { doc.el('seed-vi-' + k).value = words[idx]; });
+  await sandbox.doSeedSetupConfirm();
+  const blob = sandbox.state.vaults[0].blob;
+  assert.equal(blob.version, 2);
+  assert.ok(blob.ekPass && blob.ekSeed, 'ekPass и ekSeed на месте');
+  // финальная перешифровка не падает на не-extractable ключе
+  await sandbox.saveBlob();
+  assert.equal(sandbox.state.seedPending, null, 'seedPending сброшен');
+});
+
+test('seed: новое хранилище после «грязной» v2-сессии (остатки состояния не ломают)', async () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.event = {};
+  await setupV1Vault(sandbox, 'мастер');
+  // имитируем хвост v2-сессии: остатки seed-состояния в памяти + производный
+  // (не-extractable) ключ — раньше это роняло buildBlob при создании хранилища
+  sandbox.state.seedWrap = { iv: 'x', ct: 'y' };
+  sandbox.state.seedIterations = sandbox.SEED_KDF_ITERATIONS;
+  sandbox.state.derivedKey = await sandbox.deriveKey('мастер', sandbox.state.salt, sandbox.KDF_ITERATIONS);
+  sandbox.state.key = sandbox.state.derivedKey;
+  sandbox.state.vault = null;
+  sandbox.state.vaults = [];
+
+  doc.el('setup-name').value = 'Новое';
+  doc.el('setup-pass').value = 'новый-пароль';
+  doc.el('setup-pass2').value = 'новый-пароль';
+  await sandbox.doSetup();
+  const blob = sandbox.state.vaults[0].blob;
+  assert.equal(blob.version, 1, 'новое хранилище в v1');
+  assert.ok(!blob.ekPass && !blob.ekSeed, 'без обёрток');
+  assert.equal(sandbox.state.seedWrap, null, 'остатки seed сброшены в doSetup');
+
+  // и seed для нового хранилища включается штатно
+  doc.el('seed-pass').value = 'новый-пароль';
+  await sandbox.doSeedGenerate();
+  const words = sandbox.state.seedPending.phrase.split(' ');
+  await sandbox.doSeedVerifyStart();
+  sandbox.state.seedPending.ask.forEach((idx, k) => { doc.el('seed-vi-' + k).value = words[idx]; });
+  await sandbox.doSeedSetupConfirm();
+  assert.ok(sandbox.state.vaults[0].blob.ekSeed, 'seed включён после «грязной» сессии');
+});
+
 test('seed: включение (v1→v2), смена пароля и укрепление не ломают восстановление', async () => {
   const { sandbox, doc } = loadApp();
   sandbox.event = {};

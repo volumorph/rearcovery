@@ -28,7 +28,15 @@ function decryptWithKey(blob, key){
 
 /* v2-формат (seed включён или был включён): данные шифруются стабильным ключом
  * VK; VK обёрнут производным ключом от пароля (ekPass) и ключом от seed-фразы
- * (ekSeed, если настроена). Смена пароля/укрепление меняют только ekPass. */
+ * (ekSeed, если настроена). Смена пароля/укрепление меняют только ekPass.
+ * ФОРМАТ ВЫВОДИТСЯ ИЗ ДАННЫХ, а не из глобального флага: v2 — это наличие
+ * ekPass в текущем блобе либо активной обёртки seed (миграция v1→v2).
+ * Глобальный флаг-«воспоминание» рассинхронизируется между сессиями и
+ * ломает перешифровку (exportKey не-extractable ключа) — см. buildBlob. */
+function vaultIsV2(){
+  return !!((state.blob && state.blob.ekPass) || (state.seedWrap && state.seedWrap.ct));
+}
+
 function wrapKeyBytes(rawBytes, wrappingKey){
   var iv = randomBytes(12);
   return crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, wrappingKey, rawBytes).then(function(ct){
@@ -65,7 +73,7 @@ function unlockWithKey(blob, key){
 
 function buildBlob(vault){
   return encryptWithKey(vault, state.key).then(function(enc){
-    var isV2 = !!state.v2;
+    var isV2 = vaultIsV2();
     var b = {
       app:'password-vault', version: isV2 ? 2 : 1,
       kdf:'PBKDF2-SHA256', kdfVersion:KDF_VERSION, iterations:KDF_ITERATIONS,

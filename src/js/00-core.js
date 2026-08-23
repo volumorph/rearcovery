@@ -9,7 +9,6 @@ var state = {
   salt: null,          // base64 соль текущего ключа
   key: null,           // CryptoKey (AES-GCM): ключ данных (v2 — VK, v1 — производный)
   derivedKey: null,    // производный ключ от пароля (для v2: оборачивает VK)
-  v2: false,           // формат блоба v2 (стабильный VK + ekPass; seed — опционально)
   seedWrap: null,      // {iv, ct}: VK, обёрнутый ключом от seed-фразы (ekSeed)
   seedIterations: null,// итерации KDF для seed-ключа (хранятся в блобе)
   seedPending: null,   // {phrase, ask} — временное состояние настройки seed

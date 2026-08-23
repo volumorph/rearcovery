@@ -114,11 +114,11 @@ function doSeedSetupConfirm(){
     .then(function(){
       var seedKeyP = deriveSeedKey(phrase);
       var vkRawP;
-      if(!state.v2){
+      if(!vaultIsV2()){
         // v1 → v2: новый случайный VK, данные перешифровываются
         vkRawP = Promise.resolve(randomBytes(32)).then(function(raw){
           return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, true, ['encrypt','decrypt']).then(function(vk){
-            state.key = vk; state.v2 = true;
+            state.key = vk;
             return raw;
           });
         });
@@ -207,7 +207,6 @@ function doSeedRecover(){
         return deriveKey(nw, newSalt, KDF_ITERATIONS).then(function(newDk){
           state.key = vk;
           state.derivedKey = newDk;
-          state.v2 = true;
           state.seedWrap = { iv: blob.ekSeedIv, ct: blob.ekSeed };
           state.seedIterations = blob.seedIterations || SEED_KDF_ITERATIONS;
           state.vault = vault;

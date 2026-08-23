@@ -117,6 +117,11 @@ function doSetup(){
   if(p1 !== p2){ err.textContent = 'Пароли не совпадают.'; return; }
   var btn = $('btn-setup');
   btn.disabled = true; btn.textContent = 'Создание…';
+  // сбросить «хвост» предыдущей (v2-)сессии: формат выводится из блоба,
+  // но остатки seed-состояния в памяти не должны переживать создание нового
+  state.seedWrap = null;
+  state.seedIterations = null;
+  state.derivedKey = null;
   state.salt = bytesToBase64(randomBytes(16));
   return deriveKey(p1, state.salt, KDF_ITERATIONS).then(function(key){
     state.key = key;
@@ -150,16 +155,16 @@ function tryUnlock(){
       return unwrapKeyBytes(blob.ekPass, blob.ekIv, key).then(function(raw){
         return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, true, ['encrypt','decrypt']);
       }).then(function(vk){
-        state.key = vk; state.v2 = true;
+        state.key = vk;
         return decryptWithKey(blob, vk);
       });
     }
-    state.key = key; state.v2 = false;
+    state.key = key;
     return decryptWithKey(blob, key);
   }).then(function(vault){
     state.vault = vault; state.salt = blob.salt;
     state.vaultId = entry.id; state.blob = blob;
-    if(state.v2 && blob.ekSeed){ state.seedWrap = {iv: blob.ekSeedIv, ct: blob.ekSeed}; state.seedIterations = blob.seedIterations; }
+    if(blob.ekPass && blob.ekSeed){ state.seedWrap = {iv: blob.ekSeedIv, ct: blob.ekSeed}; state.seedIterations = blob.seedIterations; }
     else { state.seedWrap = null; state.seedIterations = null; }
   }).then(function(){ enterMain(); })
     .catch(function(){ err.textContent = 'Неверный мастер-пароль.'; $('unlock-pass').select(); })
@@ -193,7 +198,6 @@ function lock(){
 function doLock(){
   state.key = null;
   state.derivedKey = null;
-  state.v2 = false;
   state.seedWrap = null;
   state.seedIterations = null;
   state.vault = null;
@@ -315,7 +319,7 @@ function doChangePass(){
       return deriveKey(nw, newSalt, KDF_ITERATIONS).then(function(key){
         state.salt = newSalt;
         state.derivedKey = key;
-        if(!state.v2) state.key = key; // v1: ключ данных = новый производный; v2: VK стабилен, buildBlob переобернёт ekPass
+        if(!vaultIsV2()) state.key = key; // v1: ключ данных = новый производный; v2: VK стабилен, buildBlob переобернёт ekPass
         return saveBlob();
       });
     })
@@ -340,7 +344,7 @@ function doStrengthenKdf(){
       return deriveKey(pw, newSalt, KDF_ITERATIONS).then(function(key){
         state.salt = newSalt;
         state.derivedKey = key;
-        if(!state.v2) state.key = key;
+        if(!vaultIsV2()) state.key = key;
         return saveBlob();
       });
     })
