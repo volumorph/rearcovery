@@ -25,11 +25,25 @@ function makeStorage() {
   };
 }
 
+function makeClassList() {
+  const set = new Set();
+  return {
+    add(...cs) { cs.forEach((c) => set.add(c)); },
+    remove(...cs) { cs.forEach((c) => set.delete(c)); },
+    toggle(c, force) {
+      const want = force === undefined ? !set.has(c) : !!force;
+      if (want) set.add(c); else set.delete(c);
+      return want;
+    },
+    contains(c) { return set.has(c); },
+  };
+}
+
 function makeElement() {
   return {
     value: '', textContent: '', innerHTML: '', checked: false, files: [],
     style: {}, dataset: {},
-    classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+    classList: makeClassList(),
     addEventListener() {}, removeEventListener() {},
     setAttribute() {}, getAttribute() { return null; }, removeAttribute() {},
     focus() {}, blur() {}, click() {}, select() {}, remove() {}, appendChild() {},

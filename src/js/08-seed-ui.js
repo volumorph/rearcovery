@@ -2,9 +2,12 @@
 /* Настройка (тулбар «🌱 Seed-фраза»), отключение, восстановление с экрана входа. */
 function updateSeedUnlockLink(){
   var el = $('unlock-seed-link');
+  var warn = $('unlock-seed-warn');
   if(!el) return;
   var entry = state.vaults.find(function(v){ return v.id === state.selectedVaultId; });
-  el.classList.toggle('hidden', !(entry && entry.blob && entry.blob.ekSeed));
+  var hasSeed = !!(entry && entry.blob && entry.blob.ekSeed);
+  el.classList.toggle('hidden', !hasSeed);
+  if(warn) warn.classList.toggle('hidden', !entry || hasSeed);
 }
 
 function showSeedStep(step){

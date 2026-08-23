@@ -199,4 +199,26 @@ test('seed: отключение — фраза больше не открыва
   assert.equal(cloneVault(await sandbox.unlockWithKey(blob, dk)).accounts[0].name, 'Почта');
 });
 
+test('seed: ссылка и предупреждение на экране входа зависят от ekSeed', () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.state.vaults = [
+    { id: 'with', name: 'A', blob: { ekSeed: 'x' } },
+    { id: 'without', name: 'B', blob: {} },
+  ];
+
+  sandbox.state.selectedVaultId = 'with';
+  sandbox.updateSeedUnlockLink();
+  assert.equal(doc.el('unlock-seed-link').classList.contains('hidden'), false, 'ссылка видна при seed');
+  assert.equal(doc.el('unlock-seed-warn').classList.contains('hidden'), true, 'предупреждения нет при seed');
+
+  sandbox.state.selectedVaultId = 'without';
+  sandbox.updateSeedUnlockLink();
+  assert.equal(doc.el('unlock-seed-link').classList.contains('hidden'), true, 'ссылки нет без seed');
+  assert.equal(doc.el('unlock-seed-warn').classList.contains('hidden'), false, 'предупреждение видно без seed');
+
+  sandbox.state.selectedVaultId = null;
+  sandbox.updateSeedUnlockLink();
+  assert.equal(doc.el('unlock-seed-warn').classList.contains('hidden'), true, 'без хранилищ предупреждения нет');
+});
+
 function cloneVault(v) { return JSON.parse(JSON.stringify(v)); }
