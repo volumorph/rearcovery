@@ -31,7 +31,10 @@ function makeElement() {
     style: {}, dataset: {},
     classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
     addEventListener() {}, removeEventListener() {},
+    setAttribute() {}, getAttribute() { return null; }, removeAttribute() {},
     focus() {}, blur() {}, click() {}, select() {}, remove() {}, appendChild() {},
+    querySelector() { return null; }, querySelectorAll() { return []; },
+    closest() { return null; },
   };
 }
 

@@ -26,14 +26,53 @@ function decryptWithKey(blob, key){
   });
 }
 
+/* v2-формат (seed включён или был включён): данные шифруются стабильным ключом
+ * VK; VK обёрнут производным ключом от пароля (ekPass) и ключом от seed-фразы
+ * (ekSeed, если настроена). Смена пароля/укрепление меняют только ekPass. */
+function wrapKeyBytes(rawBytes, wrappingKey){
+  var iv = randomBytes(12);
+  return crypto.subtle.encrypt({name:'AES-GCM', iv:iv}, wrappingKey, rawBytes).then(function(ct){
+    return { iv: bytesToBase64(iv), ct: bytesToBase64(new Uint8Array(ct)) };
+  });
+}
+function unwrapKeyBytes(ctB64, ivB64, key){
+  var iv = base64ToBytes(ivB64);
+  var ct = base64ToBytes(ctB64);
+  return crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, ct).then(function(raw){ return new Uint8Array(raw); });
+}
+/* Расшифровка блоба производным ключом от пароля: для v2 сначала разворачиваем VK */
+function unlockWithKey(blob, key){
+  if(blob && blob.ekPass){
+    return unwrapKeyBytes(blob.ekPass, blob.ekIv, key).then(function(raw){
+      return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, true, ['encrypt','decrypt']);
+    }).then(function(vk){ return decryptWithKey(blob, vk); });
+  }
+  return decryptWithKey(blob, key);
+}
+
 function buildBlob(vault){
   return encryptWithKey(vault, state.key).then(function(enc){
-    return {
-      app:'password-vault', version:1,
+    var isV2 = !!state.v2;
+    var b = {
+      app:'password-vault', version: isV2 ? 2 : 1,
       kdf:'PBKDF2-SHA256', kdfVersion:KDF_VERSION, iterations:KDF_ITERATIONS,
       salt: state.salt, iv: enc.iv, ct: enc.ct,
       savedAt: new Date().toISOString()   // момент создания этого блоба (для «сохранён» при импорте)
     };
+    if(!isV2) return b;
+    // v2: пере-обернуть VK под текущий производный ключ (меняется при смене пароля/укреплении)
+    return crypto.subtle.exportKey('raw', state.key).then(function(vkRaw){
+      return wrapKeyBytes(vkRaw, state.derivedKey).then(function(ekPass){
+        b.ekIv = ekPass.iv;
+        b.ekPass = ekPass.ct;
+        if(state.seedWrap && state.seedWrap.ct){
+          b.ekSeedIv = state.seedWrap.iv;
+          b.ekSeed = state.seedWrap.ct;
+          b.seedIterations = state.seedIterations || SEED_KDF_ITERATIONS;
+        }
+        return b;
+      });
+    });
   });
 }
 

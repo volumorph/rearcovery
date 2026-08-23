@@ -43,6 +43,7 @@ function boot(){
 
 function renderVaultList(){
   var el = $('vault-list');
+  if(typeof updateSeedUnlockLink === 'function') updateSeedUnlockLink();
   if(!state.vaults.length){
     el.innerHTML = '<div class="empty" style="padding:16px">Пока нет хранилищ — создайте первое.</div>';
     return;
@@ -117,7 +118,7 @@ function doSetup(){
   var btn = $('btn-setup');
   btn.disabled = true; btn.textContent = 'Создание…';
   state.salt = bytesToBase64(randomBytes(16));
-  deriveKey(p1, state.salt, KDF_ITERATIONS).then(function(key){
+  return deriveKey(p1, state.salt, KDF_ITERATIONS).then(function(key){
     state.key = key;
     state.vault = { version:1, accounts:[] };
     state.vaultId = uid();
@@ -143,10 +144,23 @@ function tryUnlock(){
   btn.disabled = true; btn.textContent = 'Разблокировка…';
   var blob = entry.blob;
   deriveKey(pw, blob.salt, blob.iterations).then(function(key){
-    return decryptWithKey(blob, key).then(function(vault){
-      state.key = key; state.vault = vault; state.salt = blob.salt;
-      state.vaultId = entry.id; state.blob = blob;
-    });
+    state.derivedKey = key;
+    if(blob.ekPass){
+      // v2: данные под стабильным VK, производный ключ только разворачивает ekPass
+      return unwrapKeyBytes(blob.ekPass, blob.ekIv, key).then(function(raw){
+        return crypto.subtle.importKey('raw', raw, {name:'AES-GCM'}, true, ['encrypt','decrypt']);
+      }).then(function(vk){
+        state.key = vk; state.v2 = true;
+        return decryptWithKey(blob, vk);
+      });
+    }
+    state.key = key; state.v2 = false;
+    return decryptWithKey(blob, key);
+  }).then(function(vault){
+    state.vault = vault; state.salt = blob.salt;
+    state.vaultId = entry.id; state.blob = blob;
+    if(state.v2 && blob.ekSeed){ state.seedWrap = {iv: blob.ekSeedIv, ct: blob.ekSeed}; state.seedIterations = blob.seedIterations; }
+    else { state.seedWrap = null; state.seedIterations = null; }
   }).then(function(){ enterMain(); })
     .catch(function(){ err.textContent = 'Неверный мастер-пароль.'; $('unlock-pass').select(); })
     .finally(function(){ btn.disabled = false; btn.textContent = 'Разблокировать'; });
@@ -171,13 +185,16 @@ function lock(){
   if(state.key && state.vault){
     // сначала сохранить незаписанные изменения, чтобы ничего не потерять
     clearTimeout(saveTimer);
-    saveBlob().then(doLock);
-    return;
+    return saveBlob().then(doLock);
   }
   doLock();
 }
 function doLock(){
   state.key = null;
+  state.derivedKey = null;
+  state.v2 = false;
+  state.seedWrap = null;
+  state.seedIterations = null;
   state.vault = null;
   state.blob = null;
   state.currentAccountId = null;
@@ -219,13 +236,14 @@ function doChangePass(){
   if(nw.length < 8){ err.textContent = 'Новый пароль должен быть не короче 8 символов.'; return; }
   if(nw !== cf){ err.textContent = 'Новые пароли не совпадают.'; return; }
   var btn = event && event.target ? event.target : null;
-  deriveKey(cur, state.salt, state.blob.iterations)
-    .then(function(curKey){ return decryptWithKey(state.blob, curKey); })
+  return deriveKey(cur, state.salt, state.blob.iterations)
+    .then(function(curKey){ return unlockWithKey(state.blob, curKey); })
     .then(function(){
       var newSalt = bytesToBase64(randomBytes(16));
       return deriveKey(nw, newSalt, KDF_ITERATIONS).then(function(key){
         state.salt = newSalt;
-        state.key = key;
+        state.derivedKey = key;
+        if(!state.v2) state.key = key; // v1: ключ данных = новый производный; v2: VK стабилен, buildBlob переобернёт ekPass
         return saveBlob();
       });
     })
@@ -243,12 +261,13 @@ function doStrengthenKdf(){
   if(!pw){ err.textContent = 'Введите мастер-пароль.'; return; }
   // пароль в памяти не хранится — для пере-вывода ключа нужен его ввод
   return deriveKey(pw, state.salt, state.blob.iterations)
-    .then(function(oldKey){ return decryptWithKey(state.blob, oldKey); }) // проверка пароля
+    .then(function(oldKey){ return unlockWithKey(state.blob, oldKey); }) // проверка пароля (v1/v2)
     .then(function(){
       var newSalt = bytesToBase64(randomBytes(16));
       return deriveKey(pw, newSalt, KDF_ITERATIONS).then(function(key){
         state.salt = newSalt;
-        state.key = key;
+        state.derivedKey = key;
+        if(!state.v2) state.key = key;
         return saveBlob();
       });
     })
@@ -308,7 +327,7 @@ function confirmAuth(){
   var btn = $('btn-auth');
   btn.disabled = true; btn.textContent = 'Проверка…';
   deriveKey(pw, state.salt, state.blob.iterations).then(function(key){
-    return decryptWithKey(state.blob, key);
+    return unlockWithKey(state.blob, key);
   }).then(function(){
     if(pa.action === 'delete'){
       deleteAccountNow(pa.accountId);

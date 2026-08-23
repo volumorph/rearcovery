@@ -194,3 +194,6 @@ code,.pw{font-family:ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;font-
 
 .gen-opts{display:flex;flex-wrap:wrap;gap:14px;margin:14px 0;font-size:14px}
 .gen-opts label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+
+.seed-word{display:inline-flex;align-items:center;gap:5px;background:var(--card2,#f1f5f9);border:1px solid var(--line,#e2e8f0);border-radius:8px;padding:6px 10px;font-size:13.5px}
+.seed-word b{color:var(--muted,#64748b);font-weight:600}

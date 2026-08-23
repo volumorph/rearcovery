@@ -7,7 +7,12 @@ var KDF_VERSION = 2;            // версия KDF-схемы в блобе (v1
 var state = {
   blob: null,          // зашифрованный контейнер (внешний JSON)
   salt: null,          // base64 соль текущего ключа
-  key: null,           // CryptoKey (AES-GCM)
+  key: null,           // CryptoKey (AES-GCM): ключ данных (v2 — VK, v1 — производный)
+  derivedKey: null,    // производный ключ от пароля (для v2: оборачивает VK)
+  v2: false,           // формат блоба v2 (стабильный VK + ekPass; seed — опционально)
+  seedWrap: null,      // {iv, ct}: VK, обёрнутый ключом от seed-фразы (ekSeed)
+  seedIterations: null,// итерации KDF для seed-ключа (хранятся в блобе)
+  seedPending: null,   // {phrase, ask} — временное состояние настройки seed
   vault: null,         // расшифрованные данные {version, accounts}
   tab: 'accounts',
   currentAccountId: null,

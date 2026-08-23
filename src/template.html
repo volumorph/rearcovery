@@ -75,6 +75,9 @@
       </div>
       <button class="btn" id="btn-unlock" style="width:100%">Разблокировать</button>
       <div class="err" id="unlock-err"></div>
+      <div style="margin-top:10px;text-align:center">
+        <button class="btn-mini hidden" id="unlock-seed-link" onclick="openSeedRecover()">🔑 Забыли пароль? Восстановить по seed-фразе</button>
+      </div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn secondary" style="flex:1" onclick="showSetupScreen('additional')">＋ Создать хранилище</button>
         <button class="btn secondary" style="flex:1" onclick="openImport()">📥 Импорт файла</button>
@@ -99,6 +102,7 @@
           <button class="btn-mini" onclick="openImport()">⬆ Импорт</button>
           <button class="btn-mini" onclick="openChangePass()">🔑 Сменить пароль</button>
           <button class="btn-mini" onclick="openStrengthenKdf()">🛡 Укрепить шифрование</button>
+          <button class="btn-mini" onclick="openSeedModal()">🌱 Seed-фраза</button>
           <button class="btn-mini danger" onclick="lock()">🔒 Заблокировать</button>
           <span class="sep"></span>
           <button class="btn-mini" onclick="graphAdd()">＋ Аккаунт</button>
@@ -293,6 +297,72 @@
 
 
 
+
+<!-- ===== МОДАЛКА: seed-фраза (настройка/отключение) ===== -->
+<div id="modal-seed" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-seed')">
+  <div class="modal-panel" style="max-width:520px">
+    <h2>🌱 Seed-фраза восстановления</h2>
+    <p id="seed-state-note" style="color:var(--muted);font-size:14px"></p>
+    <div id="seed-step-state">
+      <div class="field">
+        <label for="seed-pass">Мастер-пароль (подтверждение)</label>
+        <input type="password" id="seed-pass" autocomplete="current-password">
+      </div>
+      <div class="form-actions">
+        <button class="btn" id="btn-seed-main" onclick="doSeedGenerate()">🌱 Сгенерировать фразу</button>
+        <span class="spacer"></span>
+        <button class="btn danger" id="btn-seed-remove" onclick="doSeedRemove()">🗑 Отключить восстановление по seed</button>
+        <button class="btn secondary" onclick="closeModal('modal-seed')">Закрыть</button>
+      </div>
+    </div>
+    <div id="seed-step-show" class="hidden">
+      <p style="color:var(--muted);font-size:14px">Запишите фразу. Она показывается <b>один раз</b> — после закрытия окна увидеть её снова будет нельзя. С помощью неё можно получить доступ к хранилищу, если забыт мастер-пароль.</p>
+      <div id="seed-words" style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0"></div>
+      <div class="form-actions">
+        <button class="btn" onclick="doSeedVerifyStart()">Я записал(а) фразу — проверить</button>
+        <span class="spacer"></span>
+        <button class="btn secondary" onclick="closeModal('modal-seed')">Отмена</button>
+      </div>
+    </div>
+    <div id="seed-step-verify" class="hidden">
+      <p style="color:var(--muted);font-size:14px">Проверка: введите слова под номерами <b id="seed-ask"></b> из вашей фразы.</p>
+      <div id="seed-verify-inputs"></div>
+      <div class="form-actions">
+        <button class="btn" onclick="doSeedSetupConfirm()">Подтвердить и включить</button>
+        <span class="spacer"></span>
+        <button class="btn secondary" onclick="closeModal('modal-seed')">Отмена</button>
+      </div>
+    </div>
+    <div class="err" id="seed-err"></div>
+    <div class="err" id="seed-verify-err"></div>
+  </div>
+</div>
+
+<!-- ===== МОДАЛКА: восстановление доступа по seed-фразе ===== -->
+<div id="modal-seed-recover" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-seed-recover')">
+  <div class="modal-panel">
+    <h2>🔑 Восстановление доступа по seed-фразе</h2>
+    <p style="color:var(--muted);font-size:14px">Введите фразу из 12 слов и задайте новый мастер-пароль. Данные останутся прежними.</p>
+    <div class="field">
+      <label for="seed-recover-input">Seed-фраза (12 слов)</label>
+      <input type="text" id="seed-recover-input" autocomplete="off" spellcheck="false" placeholder="abandon ability able about…" style="font-family:ui-monospace,Menlo,Consolas,monospace">
+    </div>
+    <div class="field">
+      <label for="seed-recover-pass">Новый мастер-пароль (мин. 8 символов)</label>
+      <input type="password" id="seed-recover-pass" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label for="seed-recover-pass2">Повторите новый пароль</label>
+      <input type="password" id="seed-recover-pass2" autocomplete="new-password">
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="doSeedRecover()">Восстановить доступ</button>
+      <span class="spacer"></span>
+      <button class="btn secondary" onclick="closeModal('modal-seed-recover')">Отмена</button>
+    </div>
+    <div class="err" id="seed-recover-err"></div>
+  </div>
+</div>
 
 <!-- ===== МОДАЛКА: генератор ===== -->
 <div id="modal-generator" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-generator')">
