@@ -131,6 +131,68 @@ test('укрепление: кнопка доступна при 600k и бло�
   assert.equal(sandbox.isStrengthened(), false);
 });
 
+/* ================= 1c. копия хранилища под новым паролем ================= */
+
+test('buildBlobWith: независимый блоб под новым ключом (v1, без seed)', async () => {
+  const { sandbox } = loadApp();
+  const vault = { version: 1, accounts: [{ id: 'a1', name: 'Почта', password: 'секрет' }] };
+  const salt = b64(randomBytes(16));
+  const key = await sandbox.deriveKey('новый-пароль', salt, sandbox.KDF_ITERATIONS);
+  const blob = await sandbox.buildBlobWith(vault, key, salt, sandbox.KDF_ITERATIONS);
+  assert.equal(blob.version, 1);
+  assert.equal(blob.app, 'password-vault');
+  assert.equal(blob.salt, salt);
+  assert.ok(!blob.ekPass && !blob.ekSeed, 'без обёрток ключей');
+  assert.deepEqual(clone(await sandbox.decryptWithKey(blob, key)), vault);
+});
+
+test('doCloneVault: копия под новым паролем, оригинал не тронут', async () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.event = {};
+  const salt = b64(randomBytes(16));
+  sandbox.state.salt = salt;
+  const key = await sandbox.deriveKey('старый', salt, sandbox.KDF_ITERATIONS);
+  sandbox.state.key = key;
+  sandbox.state.vault = { version: 1, accounts: [{ id: 'a1', name: 'Почта', password: 'секрет' }] };
+  sandbox.state.vaults = [{ id: 'v1', name: 'Оригинал', blob: null, updatedAt: Date.now(), lastExportAt: null, fileName: null }];
+  sandbox.state.vaultId = 'v1';
+  await sandbox.saveBlob();
+  const origBlob = sandbox.state.vaults[0].blob;
+  const origCt = origBlob.ct;
+
+  doc.el('clone-pass').value = 'новый-пароль-копии';
+  doc.el('clone-pass2').value = 'новый-пароль-копии';
+  doc.el('clone-cur').value = 'старый';
+  await sandbox.doCloneVault();
+
+  // копия появилась в реестре с дефолтным именем
+  assert.equal(sandbox.state.vaults.length, 2);
+  const copyEntry = sandbox.state.vaults[1];
+  assert.equal(copyEntry.name, 'Копия Оригинал');
+  assert.equal(copyEntry.blob.version, 1);
+  assert.ok(!copyEntry.blob.ekSeed, 'у копии нет seed');
+
+  // оригинал не тронут: тот же шифртекст и открывается старым паролем
+  assert.equal(sandbox.state.vaults[0].blob.ct, origCt);
+  const origKey = await sandbox.deriveKey('старый', origBlob.salt, origBlob.iterations);
+  assert.deepEqual(clone(await sandbox.decryptWithKey(origBlob, origKey)), clone(sandbox.state.vault));
+
+  // копия открывается НОВЫМ паролем, старым — нет
+  const newKey = await sandbox.deriveKey('новый-пароль-копии', copyEntry.blob.salt, copyEntry.blob.iterations);
+  const dec = clone(await sandbox.decryptWithKey(copyEntry.blob, newKey));
+  assert.equal(dec.accounts[0].name, 'Почта');
+  assert.equal(dec.accounts[0].password, 'секрет');
+  const oldKey = await sandbox.deriveKey('старый', copyEntry.blob.salt, copyEntry.blob.iterations);
+  await assert.rejects(sandbox.decryptWithKey(copyEntry.blob, oldKey));
+
+  // неверный текущий пароль — копия не создаётся
+  const before = sandbox.state.vaults.length;
+  doc.el('clone-cur').value = 'неверный';
+  await sandbox.doCloneVault();
+  assert.equal(sandbox.state.vaults.length, before);
+  assert.match(doc.el('clone-err').textContent, /Текущий пароль неверен/);
+});
+
 /* ================= 2. validBlob ================= */
 
 test('validBlob: принимает корректный блоб и отклоняет повреждённые', () => {

@@ -94,6 +94,8 @@ export function loadApp() {
   own('prompt', () => null);
   own('fetch', () => Promise.reject(new Error('network disabled in tests')));
   own('FileReader', class { readAsText() {} });
+  own('URL', { createObjectURL: () => 'blob:fake', revokeObjectURL: () => {} });
+  own('Blob', globalThis.Blob);
   // не даём таймерам приложения висеть в event loop тестов
   own('setTimeout', () => 0);
   own('clearTimeout', () => {});

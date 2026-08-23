@@ -40,6 +40,19 @@ function unwrapKeyBytes(ctB64, ivB64, key){
   var ct = base64ToBytes(ctB64);
   return crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, ct).then(function(raw){ return new Uint8Array(raw); });
 }
+/* Независимая сборка блоба под заданным ключом (для «копии хранилища»):
+ * не трогает глобальное состояние — всегда v1-формат, без seed. */
+function buildBlobWith(vault, key, saltB64, iterations){
+  return encryptWithKey(vault, key).then(function(enc){
+    return {
+      app:'password-vault', version:1, kdf:'PBKDF2-SHA256', kdfVersion:KDF_VERSION,
+      iterations: iterations || KDF_ITERATIONS,
+      salt: saltB64, iv: enc.iv, ct: enc.ct,
+      savedAt: new Date().toISOString()
+    };
+  });
+}
+
 /* Расшифровка блоба производным ключом от пароля: для v2 сначала разворачиваем VK */
 function unlockWithKey(blob, key){
   if(blob && blob.ekPass){

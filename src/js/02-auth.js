@@ -143,7 +143,7 @@ function tryUnlock(){
   if(!pw){ err.textContent = 'Введите мастер-пароль.'; return; }
   btn.disabled = true; btn.textContent = 'Разблокировка…';
   var blob = entry.blob;
-  deriveKey(pw, blob.salt, blob.iterations).then(function(key){
+  return deriveKey(pw, blob.salt, blob.iterations).then(function(key){
     state.derivedKey = key;
     if(blob.ekPass){
       // v2: данные под стабильным VK, производный ключ только разворачивает ekPass
@@ -216,6 +216,56 @@ function doLock(){
   $('unlock-pass').value = '';
   $('unlock-err').textContent = '';
   $('unlock-pass').focus();
+}
+
+/* ================= Копия хранилища под новым паролем ================= */
+function openCloneModal(){
+  ['clone-name','clone-pass','clone-pass2','clone-cur'].forEach(function(id){ $(id).value = ''; });
+  $('clone-err').textContent = '';
+  openModal('modal-clone');
+  $('clone-cur').focus();
+}
+
+function doCloneVault(){
+  var cur = $('clone-cur').value, nw = $('clone-pass').value, cf = $('clone-pass2').value;
+  var err = $('clone-err');
+  err.textContent = '';
+  var entry = currentEntry();
+  var name = $('clone-name').value.trim() || 'Копия ' + (entry ? entry.name : 'хранилища');
+  if(!cur){ err.textContent = 'Введите текущий мастер-пароль для подтверждения.'; return; }
+  if(nw.length < 8){ err.textContent = 'Новый пароль должен быть не короче 8 символов.'; return; }
+  if(nw !== cf){ err.textContent = 'Пароли не совпадают.'; return; }
+  var btn = $('btn-clone');
+  btn.disabled = true; btn.textContent = 'Создание…';
+  return deriveKey(cur, state.salt, state.blob.iterations)
+    .then(function(curKey){ return unlockWithKey(state.blob, curKey); }) // подтверждение текущим паролем
+    .then(function(){
+      // независимая копия данных: оригинал (state.vault) не мутируем
+      var copy = JSON.parse(JSON.stringify(state.vault));
+      copy.updatedAt = new Date().toISOString();
+      var newSalt = bytesToBase64(randomBytes(16));
+      return deriveKey(nw, newSalt, KDF_ITERATIONS).then(function(key){
+        return buildBlobWith(copy, key, newSalt, KDF_ITERATIONS);
+      }).then(function(blob){
+        var id = uid();
+        state.vaults.push({ id: id, name: name, blob: blob, updatedAt: Date.now(), lastExportAt: null, fileName: null });
+        saveVaults(state.vaults);
+        return blob;
+      });
+    })
+    .then(function(blob){
+      closeModal('modal-clone');
+      toast('Копия «' + name + '» создана — откройте её по новому паролю с экрана входа.');
+      var fname = 'rearcovery-copy-' + new Date().toISOString().slice(0,10) + '.json';
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(blob, null, 2)], { type: 'application/json' }));
+      a.download = fname;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    })
+    .catch(function(){ err.textContent = 'Текущий пароль неверен.'; })
+    .finally(function(){ btn.disabled = false; btn.textContent = 'Создать копию'; });
 }
 
 function openChangePass(){

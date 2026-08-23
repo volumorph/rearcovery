@@ -100,6 +100,7 @@
         <div class="graph-toolbar">
           <button class="btn-mini" onclick="openGenerator()">⚙ Генератор</button>
           <button class="btn-mini" onclick="doExport()">⬇ Экспорт</button>
+          <button class="btn-mini" onclick="openCloneModal()">⧉ Копия</button>
           <button class="btn-mini" onclick="openImport()">⬆ Импорт</button>
           <button class="btn-mini" onclick="openChangePass()">🔑 Сменить пароль</button>
           <button class="btn-mini" id="btn-strengthen" onclick="openStrengthenKdf()">🛡 Укрепить шифрование</button>
@@ -364,6 +365,36 @@
       <button class="btn secondary" onclick="closeModal('modal-seed-recover')">Отмена</button>
     </div>
     <div class="err" id="seed-recover-err"></div>
+  </div>
+</div>
+
+<!-- ===== МОДАЛКА: копия хранилища под новым паролем ===== -->
+<div id="modal-clone" class="overlay hidden" onclick="if(event.target===this)closeModal('modal-clone')">
+  <div class="modal-panel">
+    <h2>⧉ Копия хранилища под новым паролем</h2>
+    <p style="color:var(--muted);font-size:14px">Создаётся независимая копия всех данных с новым мастер-паролем. Текущее хранилище и его пароль не меняются. Копия появится в списке хранилищ и сразу скачается файлом .json.</p>
+    <div class="field">
+      <label for="clone-name">Название копии (необязательно)</label>
+      <input type="text" id="clone-name" autocomplete="off" spellcheck="false" placeholder="Копия…">
+    </div>
+    <div class="field">
+      <label for="clone-pass">Новый мастер-пароль (мин. 8 символов)</label>
+      <input type="password" id="clone-pass" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label for="clone-pass2">Повторите новый пароль</label>
+      <input type="password" id="clone-pass2" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label for="clone-cur">Текущий мастер-пароль (подтверждение)</label>
+      <input type="password" id="clone-cur" autocomplete="current-password">
+    </div>
+    <div class="form-actions">
+      <button class="btn" id="btn-clone" onclick="doCloneVault()">Создать копию</button>
+      <span class="spacer"></span>
+      <button class="btn secondary" onclick="closeModal('modal-clone')">Отмена</button>
+    </div>
+    <div class="err" id="clone-err"></div>
   </div>
 </div>
 
