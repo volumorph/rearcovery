@@ -189,6 +189,26 @@ function closeModal(id){ $(id).classList.add('hidden'); }
 function closeModals(){
   document.querySelectorAll('.overlay').forEach(function(m){ m.classList.add('hidden'); });
 }
+/* Выпадающие меню тулбара (категории «Хранилище/Защита/Узлы/Вид»).
+ * toggleGraphMenu вызывается из onclick кнопки-категории; клик по пункту
+ * меню выполняет действие и закрывает меню; клик где-то ещё — закрывает. */
+function toggleGraphMenu(btn){
+  var wrap = btn.closest ? btn.closest('.graph-menu') : null;
+  if(!wrap) return;
+  var open = wrap.classList.contains('open');
+  closeGraphMenus();
+  if(!open) wrap.classList.add('open');
+}
+function closeGraphMenus(){
+  document.querySelectorAll('.graph-menu.open').forEach(function(m){ m.classList.remove('open'); });
+}
+document.addEventListener('click', function(e){
+  var t = e && e.target;
+  if(!t || !t.closest) return;
+  if(t.closest('.graph-menu-panel')){ closeGraphMenus(); return; }
+  if(!t.closest('.graph-menu')) closeGraphMenus();
+});
+
 /* Крестик «✕» на всех модалках. Закрытие только осознанное (✕ / Отмена):
  * клик по фону больше не закрывает окно. Инжектится в DOM после захвата
  * APP_SOURCE, поэтому сериализация/хэш файла не затрагиваются. */

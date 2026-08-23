@@ -179,6 +179,17 @@ code,.pw{font-family:ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;font-
 #workspace .btn-mini.active{background:#3a5cc0;border-color:#5b8cff;color:#fff}
 #workspace .btn-mini.done{background:#1e3a2a;border-color:#3f9d5f;color:#7fd9a0}
 #workspace .btn-mini.done:hover{border-color:#3f9d5f;color:#7fd9a0}
+/* выпадающие категории тулбара */
+#workspace .graph-menu{position:relative}
+#workspace .graph-menu .caret{font-size:10px;opacity:.65;margin-left:2px}
+#workspace .graph-menu-toggle{display:inline-flex;align-items:center}
+#workspace .graph-menu-panel{display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:210px;background:var(--g-bg2);border:1px solid var(--g-line);border-radius:10px;padding:6px;z-index:40;flex-direction:column;gap:2px;box-shadow:0 14px 34px rgba(0,0,0,.55)}
+#workspace .graph-menu.open .graph-menu-panel{display:flex}
+#workspace .graph-menu-panel button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:transparent;border:none;color:var(--g-ink);font-size:13px;padding:8px 10px;border-radius:8px;white-space:nowrap;cursor:pointer}
+#workspace .graph-menu-panel button:hover{background:rgba(255,255,255,.08);color:#fff}
+#workspace .graph-menu-panel button.danger{color:#f2a8a8}
+#workspace .graph-menu-panel button.done{color:#7fd9a0}
+#workspace .graph-menu-panel button:disabled{opacity:.5;cursor:not-allowed}
 .btn-mini:disabled{opacity:.55;cursor:not-allowed}
 .btn-mini.done:disabled{opacity:1;cursor:default}
 .stream-overlay{display:none;flex:1;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;color:var(--g-muted);padding:24px}
