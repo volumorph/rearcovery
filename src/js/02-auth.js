@@ -16,6 +16,11 @@ function renderModeBadge(){
     el.classList.remove('mode-online', 'mode-offline');
     el.classList.add(online ? 'mode-online' : 'mode-offline');
   });
+  // «Скачать локальную копию» имеет смысл только в веб-версии: в file:// это
+  // и есть тот самый файл, качать его самого странно. Прячем кнопки и подсказку.
+  document.querySelectorAll('.dl-copy-btn, .dl-copy-hint').forEach(function(el){
+    el.classList.toggle('hidden', !online);
+  });
 }
 
 function boot(){
