@@ -49,6 +49,9 @@ function makeElement() {
     focus() {}, blur() {}, click() {}, select() {}, remove() {}, appendChild() {},
     querySelector() { return null; }, querySelectorAll() { return []; },
     closest() { return null; },
+    // нужно отрисовке графа (gridSvg/screenToWorld/zoomAt)
+    getBoundingClientRect() { return { left: 0, top: 0, width: 800, height: 560 }; },
+    setPointerCapture() {}, releasePointerCapture() {},
   };
 }
 

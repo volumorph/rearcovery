@@ -7,17 +7,17 @@ function switchPanel(name){
   $('panel-guide').classList.toggle('hidden', name !== 'guide');
 }
 
+function accountHay(a){
+  var r = a.recovery || {};
+  return [a.name, a.username, a.notes, r.notes, r.phone, r.codes]
+    .concat((r.questions || []).map(function(x){ return (x.q || '') + ' ' + (x.a || ''); }))
+    .concat((a.shared || []).map(function(s){ return s.name + ' ' + s.username; }))
+    .join(' ').toLowerCase();
+}
 function filterAccounts(){
   var q = (state.search || '').trim().toLowerCase();
   if(!q) return state.vault.accounts.slice();
-  return state.vault.accounts.filter(function(a){
-    var r = a.recovery || {};
-    var hay = [a.name, a.username, a.notes, r.notes, r.phone, r.codes]
-      .concat((r.questions || []).map(function(x){ return (x.q || '') + ' ' + (x.a || ''); }))
-      .concat((a.shared || []).map(function(s){ return s.name + ' ' + s.username; }))
-      .join(' ').toLowerCase();
-    return hay.indexOf(q) !== -1;
-  });
+  return state.vault.accounts.filter(function(a){ return accountHay(a).indexOf(q) !== -1; });
 }
 function onAccountSearch(v){ state.search = v || ''; renderAccounts(); }
 
@@ -40,18 +40,31 @@ function dupPasswordIds(){
 
 function renderAccounts(){
   var el = $('accounts-list');
-  var list = filterAccounts();
-  if(!list.length){
-    el.innerHTML = state.search
-      ? '<div class="empty">Ничего не найдено по запросу «' + esc(state.search) + '».</div>'
-      : '<div class="empty">Пока нет аккаунтов.<br>Нажмите «＋ Добавить аккаунт», чтобы внести почту, сервис или что угодно, и связать их через восстановление.</div>';
+  var q = (state.search || '').trim().toLowerCase();
+  if(!state.vault.accounts.length){
+    el.innerHTML = '<div class="empty">Пока нет аккаунтов.<br>Нажмите «＋ Добавить аккаунт», чтобы внести почту, сервис или что угодно, и связать их через восстановление.</div>';
     return;
   }
   var dupIds = dupPasswordIds();
-  el.innerHTML = list.map(function(a){ return accountCard(a, dupIds); }).join('');
+  var html = '';
+  state.vault.accounts.forEach(function(a){
+    if(a.parentId) return; // вложенные рендерятся внутри родителя
+    var ch = containerChildren(a);
+    var kids;
+    if(q){
+      var parentOk = accountHay(a).indexOf(q) !== -1;
+      kids = ch.filter(function(c){ return accountHay(c).indexOf(q) !== -1; });
+      if(!parentOk && !kids.length) return; // не совпал ни родитель, ни дети
+    } else {
+      kids = ch;
+    }
+    html += accountCard(a, dupIds, false);
+    kids.forEach(function(c){ html += accountCard(c, dupIds, true); });
+  });
+  el.innerHTML = html || '<div class="empty">Ничего не найдено по запросу «' + esc(state.search) + '».</div>';
 }
 
-function accountCard(a, dupIds){
+function accountCard(a, dupIds, nested){
   var r = a.recovery || {};
   var via = r.viaAccountId ? state.vault.accounts.find(function(x){ return x.id === r.viaAccountId; }) : null;
   var shown = state.revealedIds.has(a.id);
@@ -63,6 +76,8 @@ function accountCard(a, dupIds){
   if(r.phone) badges.push('телефон/резерв');
   if((r.questions||[]).length) badges.push('вопросы');
   if(a.shared && a.shared.length) badges.push('общий доступ ×' + a.shared.length);
+  var nch = containerChildren(a).length;
+  if(nch) badges.push(nch + ' вложено');
   var meta = via ? 'восстанавливается через ' + esc(via.name || '?') : '';
   if(a.type === 'telegram' && a.notifyEmailId){
     var nf = state.vault.accounts.find(function(x){ return x.id === a.notifyEmailId; });
@@ -98,7 +113,7 @@ function accountCard(a, dupIds){
   if(a.shared && a.shared.length){
     rows += '<div class="kv"><span>Общий доступ</span><code>' + esc(a.shared.map(function(s){ return s.name || (s.username || 'логин'); }).join(', ')) + '</code><span></span></div>';
   }
-  return '<div class="acc-card' + (state.currentAccountId === a.id ? ' selected' : '') + '" data-id="' + esc(a.id) + '">'
+  return '<div class="acc-card' + (nested ? ' nested' : '') + (state.currentAccountId === a.id ? ' selected' : '') + '" data-id="' + esc(a.id) + '">'
     + '<div class="acc-head"><div class="acc-title">'
     + '<span class="acc-name-wrap">' + typeIconSvg(a.type, a.name, 20) + '<span class="acc-name">' + esc(a.name || 'Без названия') + '</span></span>'
     + (meta ? '<span class="acc-meta">' + meta + '</span>' : '')
@@ -141,6 +156,12 @@ function openEditor(id){
   var typeOpts = Object.keys(ACCOUNT_TYPES).map(function(k){
     return '<option value="' + esc(k) + '"' + (f.type === k ? ' selected' : '') + '>' + esc(ACCOUNT_TYPES[k].label) + '</option>';
   }).join('');
+  // «внутри аккаунта»: только верхний уровень (контейнеры), и нельзя вкладывать
+  // в собственного потомка (цикл). Вложенный в родителя не может быть контейнером.
+  var parentOpts = '<option value="">— верхний уровень —</option>'
+    + others.filter(function(o){ return !o.parentId && !descendantIds(f.id).has(o.id); }).map(function(o){
+      return '<option value="' + esc(o.id) + '"' + (f.parentId === o.id ? ' selected' : '') + '>' + esc(o.name || 'Без названия') + '</option>';
+    }).join('');
 
   var qRows = (f.recovery.questions||[]).map(function(q){
     return questionRow(esc(q.q), esc(q.a));
@@ -160,6 +181,8 @@ function openEditor(id){
     + '<button type="button" class="btn-mini" onclick="genIntoEditor()">🎲 Сгенерировать</button>'
     + '</div></div>'
     + '<div class="field"><label>Тип / сервис</label><select id="ed-type">' + typeOpts + '</select></div>'
+    + '<div class="field"><label>Внутри аккаунта (необязательно)</label><select id="ed-parent">' + parentOpts + '</select>'
+    + '<div class="hint">Сервис появится списком с иконками внутри выбранного аккаунта-контейнера (например, внутри почты) — без лишних проводов на карте. Маршрут восстановления наследуется от родителя, если у сервиса нет своего.</div></div>'
     + '<div class="field"><label>Заметки</label><textarea id="ed-notes" rows="2">' + esc(f.notes) + '</textarea></div>'
 
     + '<div class="subhead">🔁 Восстановление доступа</div>'
@@ -252,6 +275,7 @@ function readEditorForm(){
     id: state.currentAccountId || uid(),
     type: val('ed-type'),
     name: val('ed-name'), username: val('ed-username'), password: val('ed-password'), notes: val('ed-notes'),
+    parentId: val('ed-parent') || null,
     recovery: {
       viaAccountId: val('ed-via') || null,
       codes: val('ed-codes'), phone: val('ed-phone'), notes: val('ed-rnotes'),

@@ -47,6 +47,7 @@ textarea{resize:vertical}
 .badge.warn{background:#fdf6e3;color:#8a6d1a}
 .risk.dup{background:#fdf6e3;border-color:#ecd29a;color:#8a6d1a}
 .acc-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
+.acc-card.nested{margin-left:26px;padding:10px 12px;background:var(--bg);border-left:3px solid var(--g-acc)}
 .acc-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
 .acc-title{min-width:0}
 .acc-name{font-weight:650;font-size:15.5px}

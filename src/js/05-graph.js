@@ -1,7 +1,17 @@
 /* ================= Нодовый редактор (стиль Blender) ================= */
 var NODE_W = 190, HEADER_H = 30, NODE_H = 86, SOCKET_Y = 56;
+var CHILD_H = 22; // высота строки вложенного сервиса внутри ноды-контейнера
 var svgEl = null;
 var dragState = null;
+
+/* Высота ноды: у контейнера с вложенными сервисами растёт под их список */
+function nodeHeightFor(a){
+  var ch = containerChildren(a);
+  if(!ch.length) return NODE_H;
+  // свёрнутый контейнер — одна строка-подсказка («N вложено — развернуть»)
+  var n = state.collapsedParents.has(a.id) ? 1 : ch.length;
+  return HEADER_H + 54 + n * CHILD_H + 8;
+}
 
 function vaultLayout(){
   if(!state.vault.layout) state.vault.layout = { nodes: {}, camera: null };
@@ -16,23 +26,38 @@ function ensureLayout(){
   Object.keys(lay.nodes).forEach(function(k){ if(!ids[k]) delete lay.nodes[k]; });
   if(!accounts.length) return lay;
   var anal = analyzeRecovery();
-  var colW = 240, rowH = 104;
+  var colW = 240;
   var maxDepth = 0;
   accounts.forEach(function(a){
+    if(a.parentId) return; // вложенные — не отдельные ноды, раскладка им не нужна
     if(!anal.inCycle.has(a.id)){ var d = anal.depthOf.get(a.id) || 0; if(d > maxDepth) maxDepth = d; }
   });
   var cols = new Map();
   accounts.forEach(function(a){
+    if(a.parentId) return;
     // конечные точки (глубина 0) — справа, восстанавливаемые — слева: поток слева направо
     var ci = anal.inCycle.has(a.id) ? 0 : ((maxDepth - (anal.depthOf.get(a.id) || 0)) + 1);
     if(!cols.has(ci)) cols.set(ci, []);
     cols.get(ci).push(a.id);
   });
   cols.forEach(function(idsInCol, ci){
-    idsInCol.forEach(function(id, i){
-      if(!lay.nodes[id]) lay.nodes[id] = { x: 24 + ci * colW, y: 24 + i * rowH };
+    var nextY = 24;
+    idsInCol.forEach(function(id){
+      var a = accById(id);
+      var h = (a ? nodeHeightFor(a) : NODE_H) + 24;
+      if(!lay.nodes[id]){
+        // новые ноды кладём ниже уже существующих в колонке (высокие контейнеры не наезжают)
+        lay.nodes[id] = { x: 24 + ci * colW, y: nextY };
+        nextY += h;
+      } else {
+        nextY = Math.max(nextY, lay.nodes[id].y + h);
+      }
     });
   });
+  // у вложенных не должно быть позиций: они живут внутри контейнера
+  var kids = {};
+  accounts.forEach(function(a){ if(a.parentId) kids[a.id] = true; });
+  Object.keys(lay.nodes).forEach(function(k){ if(kids[k]) delete lay.nodes[k]; });
   return lay;
 }
 
@@ -136,6 +161,7 @@ function wiresSvg(){
   var vis = guideVisibleIds();
   var nm = function(x){ return streamName(x); };
   state.vault.accounts.forEach(function(a){
+    if(a.parentId) return; // у вложенных сервисов нет проводов: они внутри контейнера
     var isTg = a.type === 'telegram';
     var via = a.recovery ? a.recovery.viaAccountId : null;
     if(via && (!vis || (vis.has(a.id) && vis.has(via)))){
@@ -186,6 +212,7 @@ function nodesSvg(){
   var chain = chainIds();
   var vis = guideVisibleIds();
   state.vault.accounts.forEach(function(a){
+    if(a.parentId) return; // вложенные рисуются внутри контейнера
     if(vis && !vis.has(a.id)) return;
     var p = lay[a.id];
     if(!p) return;
@@ -197,6 +224,7 @@ function nodesSvg(){
     var inChain = chain && chain.has(a.id);
     var dim = !!chain && !inChain;
     var hasData = hasRecoveryData(r);
+    var h = nodeHeightFor(a);
     var badgeRow = hasData
       ? '<text x="10" y="' + (HEADER_H + 34) + '" font-size="10.5" fill="#7f8794">' + esc([r.codes ? 'коды' : null, r.phone ? 'телефон' : null, (r.questions && r.questions.length) ? 'вопросы' : null].filter(Boolean).join(' · ')) + '</text>'
       : '<text x="10" y="' + (HEADER_H + 34) + '" font-size="10.5" fill="#c96f6f">нет данных восстановления</text>';
@@ -204,15 +232,42 @@ function nodesSvg(){
       ? ''
       : '<text x="10" y="' + (HEADER_H + 48) + '" font-size="10.5" fill="#e05a5a">пароль не записан</text>';
     var dispName = streamName(a);
+    // вложенные сервисы: строки с иконкой внутри ноды-контейнера
+    var ch = containerChildren(a);
+    var collapsed = state.collapsedParents.has(a.id);
+    var chRows = '';
+    if(ch.length){
+      var shown = collapsed ? [] : ch.filter(function(c){ return !vis || vis.has(c.id); });
+      shown.forEach(function(c, i){
+        var cy = HEADER_H + 54 + i * CHILD_H;
+        var cSel = state.selected && state.selected.kind === 'node' && state.selected.id === c.id;
+        var cInChain = chain && chain.has(c.id);
+        var cDim = !!chain && !cInChain;
+        var cName = streamName(c);
+        chRows += '<g class="g-child" data-id="' + esc(c.id) + '"' + (cDim ? ' opacity="0.45"' : '') + ' transform="translate(0,' + cy + ')">'
+          + '<rect x="6" y="0" width="' + (NODE_W - 12) + '" height="' + (CHILD_H - 2) + '" rx="4" fill="' + (cSel ? '#4a5568' : (cInChain ? '#2f4156' : 'transparent')) + '" stroke="' + (cSel ? '#f5a623' : (cInChain ? '#4da3ff' : 'transparent')) + '" stroke-width="1"/>'
+          + '<g transform="translate(10,1)">' + typeIconSvg(c.type, c.name, 14) + '</g>'
+          + '<text x="30" y="' + (CHILD_H - 8) + '" font-size="11" fill="' + (cSel ? '#fff' : '#c9d1da') + '">' + esc(truncate(cName, 19)) + '</text>'
+          + (c.recovery && c.recovery.viaAccountId
+              ? '<circle cx="' + (NODE_W - 13) + '" cy="' + (CHILD_H / 2 - 1) + '" r="3" fill="#5a7dff"><title>У «' + esc(streamName(c)) + '» свой маршрут восстановления (помимо родителя)</title></circle>'
+              : '')
+          + '</g>';
+      });
+      if(collapsed){
+        chRows += '<text x="14" y="' + (HEADER_H + 54 + CHILD_H / 2 + 3) + '" font-size="10.5" fill="#7f8794">' + ch.length + ' вложено — развернуть ▾</text>';
+      }
+    }
     out.push('<g class="g-node" data-id="' + esc(a.id) + '"' + (dim ? ' opacity="0.45"' : '') + ' transform="translate(' + p.x + ',' + p.y + ')">'
-      + '<rect class="g-node-body" width="' + NODE_W + '" height="' + NODE_H + '" rx="7" fill="#3b3f46" stroke="' + (selected ? '#f5a623' : (inChain ? '#4da3ff' : '#24282e')) + '" stroke-width="' + (selected ? 2.6 : (inChain ? 2.4 : 1.2)) + '">'
+      + '<rect class="g-node-body" width="' + NODE_W + '" height="' + h + '" rx="7" fill="#3b3f46" stroke="' + (selected ? '#f5a623' : (inChain ? '#4da3ff' : '#24282e')) + '" stroke-width="' + (selected ? 2.6 : (inChain ? 2.4 : 1.2)) + '">'
       + '<title>' + esc(dispName) + ' — двойной клик, чтобы изменить</title></rect>'
       + '<path d="M0,7 Q0,0 7,0 L' + (NODE_W - 7) + ',0 Q' + NODE_W + ',0 ' + NODE_W + ',7 L' + NODE_W + ',' + HEADER_H + ' L0,' + HEADER_H + ' Z" fill="' + header + '"/>'
       + '<g transform="translate(7,5)">' + typeIconSvg(a.type, a.name, 20) + '</g>'
       + '<text x="32" y="' + (HEADER_H - 10) + '" font-size="12.5" font-weight="700" fill="#fff">' + esc(truncate(dispName, 21)) + '</text>'
+      + (ch.length ? '<text class="g-collapse" x="' + (NODE_W - 22) + '" y="' + (HEADER_H - 9) + '" font-size="11" fill="#d7dde6" style="cursor:pointer" onclick="toggleContainerCollapse(' + esc(jsStr(a.id)) + ')">' + (collapsed ? '▸' : '▾') + '</text>' : '')
       + (state.streamMode ? '' : '<text x="10" y="' + (HEADER_H + 16) + '" font-size="11" fill="#aab1bc">' + esc(truncate(a.username || 'нет логина', 27)) + '</text>')
       + badgeRow
       + pwRow
+      + chRows
       + '<circle class="g-sock" cx="0" cy="' + SOCKET_Y + '" r="6" fill="#5a5f69" stroke="#1d2126" stroke-width="1.5">'
       + '<title>Вход: аккаунты, которые восстанавливаются через «' + esc(nm(a)) + '». Потяните в пустоту, чтобы отсоединить.</title></circle>'
       + (a.type === 'telegram'
@@ -231,15 +286,35 @@ function hitTest(wx, wy){
   var lay = vaultLayout().nodes;
   var accounts = state.vault.accounts;
   var vis = guideVisibleIds();
+  // сокеты — только у нод верхнего уровня
   for(var i = accounts.length - 1; i >= 0; i--){
     var a = accounts[i];
+    if(a.parentId) continue;
     if(vis && !vis.has(a.id)) continue;
     var p = lay[a.id];
     if(!p) continue;
     if(Math.hypot(wx - p.x, wy - (p.y + SOCKET_Y)) <= 13) return { kind: 'input', nodeId: a.id };
     if(Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y)) <= 13) return { kind: 'output', nodeId: a.id, out: 'via' };
     if(a.type === 'telegram' && Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 16)) <= 13) return { kind: 'output', nodeId: a.id, out: 'notify' };
-    if(wx >= p.x && wx <= p.x + NODE_W && wy >= p.y && wy <= p.y + NODE_H) return { kind: 'node', nodeId: a.id };
+  }
+  // строки вложенных сервисов и тела нод
+  for(i = accounts.length - 1; i >= 0; i--){
+    var a2 = accounts[i];
+    if(a2.parentId) continue;
+    if(vis && !vis.has(a2.id)) continue;
+    var p2 = lay[a2.id];
+    if(!p2) continue;
+    var ch = containerChildren(a2);
+    if(!state.collapsedParents.has(a2.id)){
+      for(var k = ch.length - 1; k >= 0; k--){
+        var c = ch[k];
+        if(vis && !vis.has(c.id)) continue;
+        var cy = p2.y + HEADER_H + 54 + k * CHILD_H;
+        if(wx >= p2.x + 6 && wx <= p2.x + NODE_W - 6 && wy >= cy && wy <= cy + CHILD_H) return { kind: 'node', nodeId: c.id };
+      }
+    }
+    var h = nodeHeightFor(a2);
+    if(wx >= p2.x && wx <= p2.x + NODE_W && wy >= p2.y && wy <= p2.y + h) return { kind: 'node', nodeId: a2.id };
   }
   var best = null, bestD = 10;
   function wireHit(a, dstId, outDy, wireKind){
@@ -358,7 +433,9 @@ function onGraphPointerDown(e){
   } else if(hit.kind === 'node'){
     selectNode(hit.nodeId);
     var np = lay[hit.nodeId];
-    dragState = { kind: 'node', nodeId: hit.nodeId, origX: np.x, origY: np.y, startX: e.clientX, startY: e.clientY, moved: false };
+    if(np){ // у вложенного сервиса нет своей позиции — только выбор, без перетаскивания
+      dragState = { kind: 'node', nodeId: hit.nodeId, origX: np.x, origY: np.y, startX: e.clientX, startY: e.clientY, moved: false };
+    }
   } else if(hit.kind === 'wire'){
     state.selected = { kind: 'wire', key: hit.key, srcId: hit.srcId, dstId: hit.dstId, wireKind: hit.wireKind || 'via' };
     updateChainHighlight();
@@ -454,6 +531,12 @@ function onGraphDblClick(e){
   if(hit.kind === 'node') requestAccountEdit(hit.nodeId);
 }
 
+function toggleContainerCollapse(id){
+  if(state.collapsedParents.has(id)) state.collapsedParents.delete(id);
+  else state.collapsedParents.add(id);
+  renderGraph();
+}
+
 function zoomAt(cx, cy, factor){
   var rect = svgEl.getBoundingClientRect();
   var px = cx - rect.left, py = cy - rect.top;
@@ -480,10 +563,12 @@ function fitView(){
   ids.forEach(function(id){
     var p = lay.nodes[id];
     if(!p) return;
+    var a = accById(id);
+    var h = a ? nodeHeightFor(a) : NODE_H;
     if(p.x < minX) minX = p.x;
     if(p.y < minY) minY = p.y;
     if(p.x + NODE_W > maxX) maxX = p.x + NODE_W;
-    if(p.y + NODE_H > maxY) maxY = p.y + NODE_H;
+    if(p.y + h > maxY) maxY = p.y + h;
   });
   if(minX === 1e9) return;
   var cw = svgEl.clientWidth || 800;

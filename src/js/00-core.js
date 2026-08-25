@@ -29,7 +29,32 @@ var state = {
   streamMode: false,     // «режим стрима»: скрывает имена/данные на графе и в панели
   dirty: false,          // были ли изменения данных с последнего сохранения
   settings: null,        // {theme, idleMin, clipSec} — из localStorage (см. 09-settings.js)
+  collapsedParents: new Set(), // свёрнутые ноды-контейнеры (в памяти, не в блобе)
 };
+
+/* ================= Вложенные сервисы (parentId) =================
+ * Сервис с parentId живёт внутри аккаунта-контейнера (обычно почты): на графе
+ * он показывается списком с иконками внутри ноды родителя, а не отдельной нодой
+ * с проводом. Один уровень вложенности: контейнеры — верхнего уровня.
+ * Доступ к вложенному сервису неявно наследует маршрут родителя (effectiveVia). */
+function containerChildren(a){
+  if(!a) return [];
+  return state.vault.accounts.filter(function(x){ return x.parentId === a.id; });
+}
+function descendantIds(id){
+  var out = new Set();
+  function walk(i){
+    containerChildren(findAccount(i)).forEach(function(c){
+      if(!out.has(c.id)){ out.add(c.id); walk(c.id); }
+    });
+  }
+  walk(id);
+  return out;
+}
+function effectiveVia(a){
+  if(!a) return null;
+  return (a.recovery && a.recovery.viaAccountId) || a.parentId || null;
+}
 
 /* ================= Утилиты ================= */
 function $(id){ return document.getElementById(id); }

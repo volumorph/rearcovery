@@ -6,7 +6,7 @@ function analyzeRecovery(){
   function dfs(id, stack){
     color.set(id, 1); stack.push(id);
     var a = byId.get(id);
-    var via = a && a.recovery ? a.recovery.viaAccountId : null;
+    var via = effectiveVia(a); // вложенный сервис наследует маршрут родителя
     if(via && byId.has(via)){
       if(color.get(via) === 1){
         var i = stack.indexOf(via);
@@ -23,7 +23,7 @@ function analyzeRecovery(){
   function depth(id){
     if(depthOf.has(id)) return depthOf.get(id);
     var a = byId.get(id);
-    var via = a && a.recovery ? a.recovery.viaAccountId : null;
+    var via = effectiveVia(a);
     var d = 0;
     if(via && byId.has(via)) d = inCycle.has(via) ? 1 : 1 + depth(via);
     depthOf.set(id, d);
@@ -42,7 +42,7 @@ function chainFor(id){
     if(seen.has(cur.id)){ cycle = true; steps.push(cur); break; }
     seen.add(cur.id);
     steps.push(cur);
-    var via = cur.recovery ? cur.recovery.viaAccountId : null;
+    var via = effectiveVia(cur);
     cur = (via && byId.has(via)) ? byId.get(via) : null;
   }
   return { steps: steps, cycle: cycle };
@@ -70,6 +70,18 @@ function updateChainHighlight(){
       var selected = state.selected && state.selected.kind === 'node' && state.selected.id === id;
       body.setAttribute('stroke', selected ? '#f5a623' : (inChain ? '#4da3ff' : '#24282e'));
       body.setAttribute('stroke-width', selected ? '2.6' : (inChain ? '2.4' : '1.2'));
+    }
+  });
+  svgEl.querySelectorAll('.g-child').forEach(function(cg){
+    var id = cg.getAttribute('data-id');
+    var inChain = chain && chain.has(id);
+    var dim = !!chain && !inChain;
+    cg.setAttribute('opacity', dim ? '0.45' : '1');
+    var rect = cg.querySelector('rect');
+    if(rect){
+      var sel = state.selected && state.selected.kind === 'node' && state.selected.id === id;
+      rect.setAttribute('fill', sel ? '#4a5568' : (inChain ? '#2f4156' : 'transparent'));
+      rect.setAttribute('stroke', sel ? '#f5a623' : (inChain ? '#4da3ff' : 'transparent'));
     }
   });
   svgEl.querySelectorAll('.g-wire').forEach(function(w){
@@ -100,7 +112,8 @@ function computeRisks(){
   var anal = analyzeRecovery();
   state.vault.accounts.forEach(function(a){
     var r = a.recovery || {};
-    if(!r.viaAccountId && !hasRecoveryData(r)){
+    // вложенный сервис считается «имеющим путь», если у него есть родитель
+    if(!effectiveVia(a) && !hasRecoveryData(r)){
       risks.push({ a: a, type: 'no-recovery', text: 'нет ни пути, ни данных восстановления — при потере доступа вернуться не получится' });
     }
     if(anal.inCycle.has(a.id)){
@@ -139,7 +152,12 @@ function guideVisibleIds(){
   var q = guideSearchQuery();
   if(!q) return null;
   var s = new Set();
-  guideFilteredAccounts().forEach(function(a){ s.add(a.id); });
+  guideFilteredAccounts().forEach(function(a){
+    s.add(a.id);
+    // контейнеры найденных вложенных сервисов тоже видны (иначе ноду не показать)
+    var p = a.parentId, par = a;
+    while(p){ s.add(p); par = findAccount(p); p = par && par.parentId; }
+  });
   return s;
 }
 
@@ -157,7 +175,7 @@ function renderGuide(){
   }
   var sel = $('guide-select');
   sel.innerHTML = '<option value="">— не выбран —</option>' + accounts.map(function(a){
-    return '<option value="' + esc(a.id) + '"' + (state.currentAccountId === a.id ? ' selected' : '') + '>' + esc(a.name || 'Без названия') + '</option>';
+    return '<option value="' + esc(a.id) + '"' + (state.currentAccountId === a.id ? ' selected' : '') + '>' + (a.parentId ? '↳ ' : '') + esc(a.name || 'Без названия') + '</option>';
   }).join('');
   sel.value = state.currentAccountId || '';
   var info = $('guide-search-info');
@@ -215,10 +233,13 @@ function renderGuideDetail(id){
   steps.forEach(function(a, i){
     var isFirst = i === 0, isLast = i === steps.length - 1;
     var r = a.recovery || {};
-    var via = r.viaAccountId ? byId.get(r.viaAccountId) : null;
+    var viaId = effectiveVia(a);
+    var via = viaId ? byId.get(viaId) : null;
+    var parent = a.parentId ? byId.get(a.parentId) : null;
     html += '<div class="step-card' + (isFirst ? ' current' : '') + '">'
       + '<div class="step-num">ШАГ ' + (i + 1) + '</div>'
       + '<div class="step-title"><span style="display:inline-flex;flex-shrink:0">' + typeIconSvg(a.type, a.name, 20) + '</span><span>' + esc(a.name || 'Без названия') + '</span>'
+      + (parent && parent.id !== viaId ? '<span class="tag">вложен в ' + esc(parent.name || '?') + '</span>' : '')
       + (via ? ' <span class="muted" style="font-weight:400">→ восстанавливается через <b>' + esc(via.name || '?') + '</b></span>' : '')
       + (isLast && !via ? '<span class="tag">конечная точка</span>' : '')
       + '</div>'

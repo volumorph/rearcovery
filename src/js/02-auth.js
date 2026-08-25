@@ -1,6 +1,7 @@
 /* ================= Вход / выход / смена пароля ================= */
 function emptyAccount(){
   return { id: uid(), type:'', name:'', username:'', password:'', notes:'',
+    parentId:null, // вложенный сервис: живёт внутри аккаунта-контейнера (см. 00-core.js)
     recovery:{ viaAccountId:null, codes:'', phone:'', notes:'', questions:[] },
     notifyEmailId:null,
     shared:[] };
@@ -371,6 +372,11 @@ function saveAccount(){
   if(!a.name.trim()){ toast('Укажите название аккаунта'); return; }
   if(a.recovery.viaAccountId === a.id){ toast('Аккаунт не может восстанавливаться сам через себя'); return; }
   if(a.notifyEmailId === a.id){ toast('Почта уведомлений не может быть самим аккаунтом'); return; }
+  if(a.parentId){
+    if(a.parentId === a.id){ toast('Аккаунт не может быть внутри самого себя'); return; }
+    var par = findAccount(a.parentId);
+    if(!par || par.parentId){ toast('Вложить можно только в аккаунт верхнего уровня'); return; }
+  }
   if(state.currentAccountId){
     var i = state.vault.accounts.findIndex(function(x){ return x.id === state.currentAccountId; });
     if(i >= 0) state.vault.accounts[i] = a;
@@ -390,8 +396,11 @@ function requestAuth(action, accountId){
   state.pendingAction = { action: action, accountId: accountId };
   var isDelete = action === 'delete';
   $('auth-title').textContent = isDelete ? '🗑 Удаление аккаунта' : '✎ Изменение аккаунта';
+  var kids = a ? containerChildren(a) : [];
   $('auth-msg').textContent = isDelete
-    ? 'Вы действительно хотите удалить «' + (a ? a.name : 'аккаунт') + '» и все его данные? Это действие необратимо.'
+    ? 'Вы действительно хотите удалить «' + (a ? a.name : 'аккаунт') + '» и все его данные?'
+      + (kids.length ? ' Вложенных сервисов внутри: ' + kids.length + ' — они будут откреплены (станут отдельными нодами), не удалены.' : '')
+      + ' Это действие необратимо.'
     : 'Для изменения «' + (a ? a.name : 'аккаунта') + '» введите мастер-пароль.';
   $('btn-auth').textContent = isDelete ? 'Удалить' : 'Изменить';
   $('auth-pass').value = '';
@@ -432,6 +441,8 @@ function confirmAuth(){
 function requestDeleteAccount(id){ requestAuth('delete', id); }
 function requestAccountEdit(id){ requestAuth('edit', id); }
 function deleteAccountNow(id){
+  // вложенные сервисы открепляются (становятся отдельными), а не удаляются
+  state.vault.accounts.forEach(function(a){ if(a.parentId === id) a.parentId = null; });
   state.vault.accounts = state.vault.accounts.filter(function(a){ return a.id !== id; });
   state.vault.accounts.forEach(function(a){
     if(a.recovery && a.recovery.viaAccountId === id) a.recovery.viaAccountId = null;
