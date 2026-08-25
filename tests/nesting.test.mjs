@@ -334,6 +334,23 @@ test('провода вложенного Telegram: красный — исхо�
   assert.ok(!html2.includes('data-key="tg>p"'), 'via на родителя — провода нет');
 });
 
+test('провода вложенного Telegram: красный и зелёный на одну почту — рисуется только красный', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта', type: 'mail' },
+    { id: 'tg', name: 'Телеграм', type: 'telegram', parentId: 'p', recovery: { viaAccountId: 'x' }, notifyEmailId: 'x' },
+    { id: 'x', name: 'Цель', type: 'mail' },
+  ]);
+  sandbox.state.vault.layout = { nodes: { p: { x: 0, y: 0 }, x: { x: 300, y: 0 } }, camera: null };
+  sandbox.state.collapsedParents = new Set();
+  sandbox.state.currentAccountId = null;
+  sandbox.state.selected = null;
+  sandbox.state.guideSearch = '';
+  const html = sandbox.wiresSvg();
+  assert.ok(html.includes('data-key="tg&gt;x"'), 'красный провод восстановления есть');
+  assert.ok(!html.includes('data-key="tg~x"'), 'зелёного провода нет — дублирование в одну почту убрано');
+});
+
 test('hitTest: сокеты вложенного Telegram на контейнере', () => {
   const { sandbox } = loadApp();
   sandbox.state.vault = vaultWith([
