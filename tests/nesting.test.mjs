@@ -261,3 +261,95 @@ test('extractFromContainer: Alt-перетаскивание вытаскива�
   assert.equal(sandbox.extractFromContainer('m', 0, 0), false, 'повторное извлечение — no-op');
   assert.equal(sandbox.extractFromContainer('zzz', 0, 0), false, 'нет такого — no-op');
 });
+
+test('nestedTelegramOf: сокеты вложенного Telegram только при одном вложенном', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта' },
+    { id: 'tg', name: 'Телеграм', type: 'telegram', parentId: 'p' },
+    { id: 'tg2', name: 'Телеграм2', type: 'telegram', parentId: 'p' },
+    { id: 'tgtop', name: 'ТГ-контейнер', type: 'telegram' },
+  ]);
+  const p = sandbox.state.vault.accounts.find((a) => a.id === 'p');
+  const two = sandbox.nestedTelegramOf(p);
+  assert.equal(two, null, 'два Telegram — сокеты не показываем');
+  const only = sandbox.state.vault.accounts[1];
+  sandbox.state.vault.accounts.splice(2, 1); // убираем второго Telegram
+  const one = sandbox.nestedTelegramOf(p);
+  assert.ok(one && one.id === 'tg', 'один Telegram — он и есть');
+  assert.equal(sandbox.nestedTelegramOf({ id: 'x', type: 'telegram' }), null, 'контейнер-сам-Telegram — нет');
+  assert.equal(sandbox.nestedTelegramOf({ id: 'y', type: 'mail' }), null, 'без вложенных — нет');
+});
+
+test('точки на строках: зелёная — маршрут на родителя, красная — наружу, нет точки — наследует', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта' },
+    { id: 'x', name: 'Другой' },
+    { id: 'green', name: 'G', parentId: 'p', recovery: { viaAccountId: 'p' } },
+    { id: 'red', name: 'R', parentId: 'p', recovery: { viaAccountId: 'x' } },
+    { id: 'none', name: 'N', parentId: 'p' },
+  ]);
+  sandbox.state.vault.layout = { nodes: { p: { x: 0, y: 0 }, x: { x: 300, y: 0 } }, camera: null };
+  sandbox.state.collapsedParents = new Set();
+  sandbox.state.streamMode = false;
+  sandbox.state.currentAccountId = null;
+  sandbox.state.selected = null;
+  sandbox.state.guideSearch = '';
+  const html = sandbox.nodesSvg();
+  assert.ok(html.includes('fill="#4caf7d"><title>'), 'зелёная точка у «маршрут на родителя»');
+  assert.ok(html.includes('fill="#e05a5a"><title>'), 'красная точка у «маршрут наружу»');
+  assert.ok(html.includes('g-child" data-id="none"') && !html.includes('g-child" data-id="none"' + '<g'), 'у наследующего строки без точки');
+  // строка «none» не содержит кружка-точки: проверяем по отсутствию кружка в её блоке
+  const noneBlock = html.slice(html.indexOf('data-id="none"'), html.indexOf('data-id="none"') + 320);
+  assert.ok(!noneBlock.includes('<circle'), 'нет точки у наследуемого');
+});
+
+test('провода вложенного Telegram: красный — исходная почта наружу, зелёный — уведомления', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта', type: 'mail' },
+    { id: 'tg', name: 'Телеграм', type: 'telegram', parentId: 'p', recovery: { viaAccountId: 'x' }, notifyEmailId: 'y' },
+    { id: 'x', name: 'Цель', type: 'mail' },
+    { id: 'y', name: 'Уведомления', type: 'mail' },
+  ]);
+  sandbox.state.vault.layout = {
+    nodes: { p: { x: 0, y: 0 }, x: { x: 300, y: 0 }, y: { x: 300, y: 120 } },
+    camera: null,
+  };
+  sandbox.state.collapsedParents = new Set();
+  sandbox.state.currentAccountId = null;
+  sandbox.state.selected = null;
+  sandbox.state.guideSearch = '';
+  const html = sandbox.wiresSvg();
+  // esc() экранирует «>» как «&gt;» внутри атрибута
+  assert.ok(html.includes('data-key="tg&gt;x"'), 'красный провод исходной почты (ключ от Telegram)');
+  assert.ok(html.includes('data-src="tg"') && html.includes('garr-red'), 'красная стрелка от Telegram');
+  assert.ok(html.includes('data-key="tg~y"'), 'зелёный провод уведомлений');
+  assert.ok(html.includes('garr-green'), 'зелёная стрелка');
+  // на родителя провод не рисуется (дефолт — зелёная точка)
+  const tg = sandbox.state.vault.accounts.find((a) => a.id === 'tg');
+  tg.recovery.viaAccountId = 'p';
+  const html2 = sandbox.wiresSvg();
+  assert.ok(!html2.includes('data-key="tg>p"'), 'via на родителя — провода нет');
+});
+
+test('hitTest: сокеты вложенного Telegram на контейнере', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта', type: 'mail' },
+    { id: 'tg', name: 'Телеграм', type: 'telegram', parentId: 'p' },
+  ]);
+  sandbox.state.vault.layout = { nodes: { p: { x: 0, y: 0 } }, camera: null };
+  sandbox.state.collapsedParents = new Set();
+  sandbox.state.guideSearch = '';
+  const h1 = sandbox.hitTest(sandbox.NODE_W, sandbox.SOCKET_Y + 16);
+  assert.equal(h1.kind, 'output');
+  assert.equal(h1.out, 'childVia');
+  assert.equal(h1.childId, 'tg');
+  const h2 = sandbox.hitTest(sandbox.NODE_W, sandbox.SOCKET_Y + 32);
+  assert.equal(h2.out, 'childNotify');
+  assert.equal(h2.childId, 'tg');
+  const h0 = sandbox.hitTest(sandbox.NODE_W, sandbox.SOCKET_Y);
+  assert.equal(h0.out, 'via', 'синий сокет контейнера остался');
+});

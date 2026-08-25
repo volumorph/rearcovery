@@ -63,6 +63,14 @@ function ensureLayout(){
 
 function accById(id){ return state.vault.accounts.find(function(a){ return a.id === id; }); }
 
+/* Единственный вложенный Telegram контейнера (для красного/зелёного сокетов
+ * и проводов): только если Telegram внутри ровно один и контейнер сам не Telegram. */
+function nestedTelegramOf(a){
+  if(!a || a.type === 'telegram') return null;
+  var ts = containerChildren(a).filter(function(c){ return c.type === 'telegram'; });
+  return ts.length === 1 ? ts[0] : null;
+}
+
 function renderGraph(){
   var el = $('graph-canvas');
   if(!state.vault) return;
@@ -206,6 +214,38 @@ function wiresSvg(){
         out.push('<path d="' + dn + '" fill="none" stroke="transparent" stroke-width="14" pointer-events="all"/>');
       }
     }
+    // вложенный Telegram: его провода рисуются от контейнера (красный — исходная
+    // почта наружу, зелёный — уведомления); на родителя провод не рисуется (дефолт)
+    var tg2 = nestedTelegramOf(a);
+    if(tg2){
+      var tgVia = tg2.recovery ? tg2.recovery.viaAccountId : null;
+      if(tgVia && tgVia !== a.id && (!vis || (vis.has(a.id) && vis.has(tgVia)))){
+        var d3 = wirePathFor(a, tgVia, 16);
+        if(d3){
+          var k3 = tg2.id + '>' + tgVia;
+          var s3 = k3 === selKey;
+          var i3 = chain && chain.has(tg2.id) && chain.has(tgVia);
+          var dm3 = !!chain && !i3;
+          var dst3 = accById(tgVia);
+          out.push('<path class="g-wire" data-kind="via" data-src="' + esc(tg2.id) + '" data-key="' + esc(k3) + '" d="' + d3 + '"' + (dm3 ? ' opacity="0.3"' : '') + ' fill="none" stroke="' + (s3 ? '#f5a623' : (i3 ? '#4da3ff' : '#e05a5a')) + '" stroke-width="' + (s3 ? 2.8 : (i3 ? 2.6 : 1.8)) + '" marker-end="url(#garr-red)">'
+            + '<title>«' + esc(nm(tg2)) + '» (вложен в «' + esc(nm(a)) + '») восстанавливается через «' + esc(dst3 ? nm(dst3) : '?') + '». Кликните и нажмите Del, чтобы убрать связь.</title></path>');
+          out.push('<path d="' + d3 + '" fill="none" stroke="transparent" stroke-width="14" pointer-events="all"/>');
+        }
+      }
+      var tgN = tg2.notifyEmailId;
+      if(tgN && tgN !== a.id && (!vis || (vis.has(a.id) && vis.has(tgN)))){
+        var d4 = wirePathFor(a, tgN, 32);
+        if(d4){
+          var k4 = tg2.id + '~' + tgN;
+          var s4 = k4 === selKey;
+          var dm4 = !!chain && (!chain.has(tg2.id) || !chain.has(tgN));
+          var dst4 = accById(tgN);
+          out.push('<path class="g-wire" data-kind="notify" data-src="' + esc(tg2.id) + '" data-key="' + esc(k4) + '" d="' + d4 + '"' + (dm4 ? ' opacity="0.3"' : '') + ' fill="none" stroke="' + (s4 ? '#f5a623' : '#4caf7d') + '" stroke-width="' + (s4 ? 2.8 : 1.8) + '" marker-end="url(#garr-green)">'
+            + '<title>«' + esc(nm(tg2)) + '» (вложен в «' + esc(nm(a)) + '») шлёт уведомления на «' + esc(dst4 ? nm(dst4) : '?') + '». Кликните и нажмите Del, чтобы убрать связь.</title></path>');
+          out.push('<path d="' + d4 + '" fill="none" stroke="transparent" stroke-width="14" pointer-events="all"/>');
+        }
+      }
+    }
   });
   return out.join('');
 }
@@ -249,6 +289,7 @@ function nodesSvg(){
       ? ''
       : '<text x="10" y="' + (HEADER_H + 48) + '" font-size="10.5" fill="#e05a5a">пароль не записан</text>';
     var dispName = streamName(a);
+    var tg = nestedTelegramOf(a); // красный/зелёный сокеты вложенного Telegram
     // вложенные сервисы: строки с иконкой внутри ноды-контейнера
     var ch = containerChildren(a);
     var collapsed = state.collapsedParents.has(a.id);
@@ -261,13 +302,20 @@ function nodesSvg(){
         var cInChain = chain && chain.has(c.id);
         var cDim = !!chain && !cInChain;
         var cName = streamName(c);
+        // точка маршрута: зелёная — свой маршрут ведёт на родителя, красная — наружу
+        var cVia = c.recovery ? c.recovery.viaAccountId : null;
+        var cDot = '';
+        if(cVia === a.id){
+          cDot = '<circle cx="' + (NODE_W - 13) + '" cy="' + (CHILD_H / 2 - 1) + '" r="3" fill="#4caf7d"><title>«' + esc(streamName(c)) + '» восстанавливается через родителя («' + esc(streamName(a)) + '»)</title></circle>';
+        } else if(cVia){
+          var cDst = accById(cVia);
+          cDot = '<circle cx="' + (NODE_W - 13) + '" cy="' + (CHILD_H / 2 - 1) + '" r="3" fill="#e05a5a"><title>«' + esc(streamName(c)) + '» имеет свой маршрут восстановления: через «' + esc(cDst ? streamName(cDst) : '?') + '» (не родителя)</title></circle>';
+        }
         chRows += '<g class="g-child" data-id="' + esc(c.id) + '"' + (cDim ? ' opacity="0.45"' : '') + ' transform="translate(0,' + cy + ')">'
           + '<rect x="6" y="0" width="' + (NODE_W - 12) + '" height="' + (CHILD_H - 2) + '" rx="4" fill="' + (cSel ? '#4a5568' : (cInChain ? '#2f4156' : 'transparent')) + '" stroke="' + (cSel ? '#f5a623' : (cInChain ? '#4da3ff' : 'transparent')) + '" stroke-width="1"/>'
           + '<g transform="translate(10,1)">' + typeIconSvg(c.type, c.name, 14) + '</g>'
           + '<text x="30" y="' + (CHILD_H - 8) + '" font-size="11" fill="' + (cSel ? '#fff' : '#c9d1da') + '">' + esc(truncate(cName, 19)) + '</text>'
-          + (c.recovery && c.recovery.viaAccountId
-              ? '<circle cx="' + (NODE_W - 13) + '" cy="' + (CHILD_H / 2 - 1) + '" r="3" fill="#5a7dff"><title>У «' + esc(streamName(c)) + '» свой маршрут восстановления (помимо родителя)</title></circle>'
-              : '')
+          + cDot
           + '</g>';
       });
       if(collapsed){
@@ -294,6 +342,12 @@ function nodesSvg(){
           + '<title>Почта для уведомлений: Telegram шлёт сюда уведомления о входе. Тяните на вход другого узла.</title></circle>'
           : '<circle class="g-sock" cx="' + NODE_W + '" cy="' + SOCKET_Y + '" r="6" fill="#5a7dff" stroke="#1d2126" stroke-width="1.5">'
           + '<title>Выход: «' + esc(nm(a)) + '» восстанавливается через другой аккаунт. Тяните на вход другого узла.</title></circle>')
+      + (tg
+          ? '<circle class="g-sock" cx="' + NODE_W + '" cy="' + (SOCKET_Y + 16) + '" r="6" fill="#e05a5a" stroke="#1d2126" stroke-width="1.5">'
+          + '<title>Исходная почта вложенного «' + esc(nm(tg)) + '»: через какой аккаунт он восстанавливается (по умолчанию — этот контейнер). Тяните на вход другого узла.</title></circle>'
+          + '<circle class="g-sock" cx="' + NODE_W + '" cy="' + (SOCKET_Y + 32) + '" r="6" fill="#4caf7d" stroke="#1d2126" stroke-width="1.5">'
+          + '<title>Уведомления вложенного «' + esc(nm(tg)) + '»: сюда он шлёт уведомления о входе. Тяните на вход другого узла.</title></circle>'
+          : '')
       + '</g>');
   });
   return out.join('');
@@ -314,6 +368,11 @@ function hitTest(wx, wy, excludeId){
     if(Math.hypot(wx - p.x, wy - (p.y + SOCKET_Y)) <= 13) return { kind: 'input', nodeId: a.id };
     if(Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y)) <= 13) return { kind: 'output', nodeId: a.id, out: 'via' };
     if(a.type === 'telegram' && Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 16)) <= 13) return { kind: 'output', nodeId: a.id, out: 'notify' };
+    var tgs = nestedTelegramOf(a);
+    if(tgs){
+      if(Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 16)) <= 13) return { kind: 'output', nodeId: a.id, out: 'childVia', childId: tgs.id };
+      if(Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 32)) <= 13) return { kind: 'output', nodeId: a.id, out: 'childNotify', childId: tgs.id };
+    }
   }
   // строки вложенных сервисов и тела нод
   for(i = accounts.length - 1; i >= 0; i--){
@@ -336,13 +395,14 @@ function hitTest(wx, wy, excludeId){
     if(wx >= p2.x && wx <= p2.x + NODE_W && wy >= p2.y && wy <= p2.y + h) return { kind: 'node', nodeId: a2.id };
   }
   var best = null, bestD = 10;
-  function wireHit(a, dstId, outDy, wireKind){
+  function wireHit(a, dstId, outDy, wireKind, srcId){
     var p1 = lay[a.id], p2 = lay[dstId];
     if(!p1 || !p2) return;
     var pts = bezierPoints(p1.x + NODE_W, p1.y + SOCKET_Y + (outDy || 0), p2.x, p2.y + SOCKET_Y);
+    var sid = srcId || a.id; // для вложенного Telegram провод рисуется от контейнера, но логически — от Telegram
     for(var k = 0; k < pts.length; k++){
       var dd = Math.hypot(wx - pts[k][0], wy - pts[k][1]);
-      if(dd < bestD){ bestD = dd; best = { kind: 'wire', wireKind: wireKind, key: a.id + (wireKind === 'notify' ? '~' : '>') + dstId, srcId: a.id, dstId: dstId }; }
+      if(dd < bestD){ bestD = dd; best = { kind: 'wire', wireKind: wireKind, key: sid + (wireKind === 'notify' ? '~' : '>') + dstId, srcId: sid, dstId: dstId }; }
     }
   }
   accounts.forEach(function(a){
@@ -351,6 +411,13 @@ function hitTest(wx, wy, excludeId){
     var via = a.recovery ? a.recovery.viaAccountId : null;
     if(via && (!vis || vis.has(via))) wireHit(a, via, 0, 'via');
     if(a.type === 'telegram' && a.notifyEmailId && (!vis || vis.has(a.notifyEmailId))) wireHit(a, a.notifyEmailId, 16, 'notify');
+    var tg3 = nestedTelegramOf(a);
+    if(tg3){
+      var tv3 = tg3.recovery ? tg3.recovery.viaAccountId : null;
+      if(tv3 && tv3 !== a.id && (!vis || vis.has(tv3))) wireHit(a, tv3, 16, 'via', tg3.id);
+      var tn3 = tg3.notifyEmailId;
+      if(tn3 && tn3 !== a.id && (!vis || vis.has(tn3))) wireHit(a, tn3, 32, 'notify', tg3.id);
+    }
   });
   return best || { kind: 'bg' };
 }
@@ -442,8 +509,8 @@ function onGraphPointerDown(e){
   if(hit.kind === 'output'){
     state.selected = null;
     var p = lay[hit.nodeId];
-    var ody = hit.out === 'notify' ? 16 : 0;
-    dragState = { kind: 'wire', from: 'out', nodeId: hit.nodeId, out: hit.out || 'via', sx: p.x + NODE_W, sy: p.y + SOCKET_Y + ody, tempPath: tempWirePath(p.x + NODE_W, p.y + SOCKET_Y + ody, w.x, w.y) };
+    var ody = hit.out === 'notify' ? 16 : (hit.out === 'childNotify' ? 32 : (hit.out === 'childVia' ? 16 : 0));
+    dragState = { kind: 'wire', from: 'out', nodeId: hit.nodeId, out: hit.out || 'via', childId: hit.childId || null, sx: p.x + NODE_W, sy: p.y + SOCKET_Y + ody, tempPath: tempWirePath(p.x + NODE_W, p.y + SOCKET_Y + ody, w.x, w.y) };
     renderGraph();
   } else if(hit.kind === 'input'){
     state.selected = null;
@@ -543,6 +610,13 @@ function onGraphPointerUp(e){
       if(d.out === 'notify'){
         if(hit.kind === 'input' && hit.nodeId !== d.nodeId) setNotify(d.nodeId, hit.nodeId);
         else if(hit.kind === 'bg' || hit.kind === 'wire') setNotify(d.nodeId, null);
+      } else if(d.out === 'childVia'){
+        // сокет вложенного Telegram: можно кинуть и на родителя (вернуть дефолт)
+        if(hit.kind === 'input') setVia(d.childId, hit.nodeId);
+        else if(hit.kind === 'bg' || hit.kind === 'wire') setVia(d.childId, null);
+      } else if(d.out === 'childNotify'){
+        if(hit.kind === 'input') setNotify(d.childId, hit.nodeId);
+        else if(hit.kind === 'bg' || hit.kind === 'wire') setNotify(d.childId, null);
       } else {
         if(hit.kind === 'input' && hit.nodeId !== d.nodeId) setVia(d.nodeId, hit.nodeId);
         else if(hit.kind === 'bg' || hit.kind === 'wire') setVia(d.nodeId, null);
