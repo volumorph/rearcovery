@@ -196,3 +196,68 @@ test('saveAccount: нельзя вложить в вложенного акка�
   const added = sandbox.state.vault.accounts[2];
   assert.equal(added.parentId, 'p', 'parentId записан');
 });
+
+test('validDropTarget: правила цели перетаскивания', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта' },
+    { id: 'c', name: 'Сервис', parentId: 'p' },
+    { id: 'm', name: 'MEGA' },
+    { id: 'box', name: 'Контейнер' },
+    { id: 'boxc', name: 'Внутри контейнера', parentId: 'box' },
+  ]);
+  sandbox.state.collapsedParents = new Set();
+  assert.equal(sandbox.validDropTarget('m', 'p'), true, 'обычный на контейнер — можно');
+  assert.equal(sandbox.validDropTarget('p', 'p'), false, 'в самого себя — нельзя');
+  assert.equal(sandbox.validDropTarget('m', 'c'), false, 'в вложенного — нельзя');
+  assert.equal(sandbox.validDropTarget('p', 'm'), false, 'контейнер с детьми вложить — нельзя');
+  assert.equal(sandbox.validDropTarget('zzz', 'p'), false, 'нет такого аккаунта');
+});
+
+test('dropNestInto: перетаскивание вкладывает, запреты отклоняют', () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта' },
+    { id: 'm', name: 'MEGA' },
+    { id: 'box', name: 'Контейнер' },
+    { id: 'boxc', name: 'Внутри', parentId: 'box' },
+  ]);
+  sandbox.state.collapsedParents = new Set();
+  sandbox.state.currentAccountId = null;
+  sandbox.state.selected = null;
+  sandbox.state.guideSearch = '';
+  sandbox.state.revealedIds = new Set();
+
+  assert.equal(sandbox.dropNestInto('m', 'p'), true, 'вложение выполнено');
+  assert.equal(sandbox.state.vault.accounts.find((a) => a.id === 'm').parentId, 'p');
+  assert.match(doc.el('toast').textContent, /вложен в/);
+
+  assert.equal(sandbox.dropNestInto('p', 'p'), false, 'в себя — отклонено');
+  assert.equal(sandbox.dropNestInto('p', 'boxc'), false, 'в вложенного — отклонено');
+  assert.equal(sandbox.dropNestInto('box', 'p'), false, 'контейнер с детьми — отклонено');
+  assert.ok(!sandbox.state.vault.accounts.find((a) => a.id === 'p').parentId, 'ничего не поменялось');
+});
+
+test('extractFromContainer: Alt-перетаскивание вытаскивает сервис в точку отпускания', () => {
+  const { sandbox, doc } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'Почта' },
+    { id: 'm', name: 'MEGA', parentId: 'p' },
+  ]);
+  sandbox.state.collapsedParents = new Set();
+  sandbox.state.currentAccountId = null;
+  sandbox.state.selected = null;
+  sandbox.state.guideSearch = '';
+  sandbox.state.revealedIds = new Set();
+
+  assert.equal(sandbox.extractFromContainer('m', 400, 300), true, 'извлечение выполнено');
+  const m = sandbox.state.vault.accounts.find((a) => a.id === 'm');
+  assert.equal(m.parentId, null, 'родитель снят');
+  const pos = sandbox.state.vault.layout.nodes['m'];
+  assert.ok(pos, 'появилась позиция на графе');
+  assert.equal(pos.x, Math.round(400 - sandbox.NODE_W / 2), 'x — точка отпускания');
+  assert.match(doc.el('toast').textContent, /извлечён из/);
+
+  assert.equal(sandbox.extractFromContainer('m', 0, 0), false, 'повторное извлечение — no-op');
+  assert.equal(sandbox.extractFromContainer('zzz', 0, 0), false, 'нет такого — no-op');
+});
