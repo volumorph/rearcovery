@@ -511,14 +511,24 @@ function onGraphPointerDown(e){
     dragState = { kind: 'wire', from: 'in', nodeId: hit.nodeId, sx: pin.x, sy: pin.y + SOCKET_Y, tempPath: tempWirePath(w.x, w.y, pin.x, pin.y + SOCKET_Y) };
     renderGraph();
   } else if(hit.kind === 'node'){
-    selectNode(hit.nodeId);
     var acc = accById(hit.nodeId);
     var np = lay[hit.nodeId];
     if(acc && acc.parentId && e.altKey){
       // Alt + перетаскивание вложенного сервиса — «вытащить» из контейнера
+      selectNode(hit.nodeId);
       dragState = { kind: 'extract', nodeId: hit.nodeId, wx: w.x, wy: w.y, startX: e.clientX, startY: e.clientY, moved: false };
     } else if(np){ // у вложенного сервиса нет своей позиции — только выбор, без перетаскивания
-      dragState = { kind: 'node', nodeId: hit.nodeId, origX: np.x, origY: np.y, startX: e.clientX, startY: e.clientY, moved: false, dropTarget: null };
+      // если нода уже в выделении — тащим ВСЮ группу; иначе выделяем только её
+      if(!state.selectedIds.has(hit.nodeId)){
+        selectNode(hit.nodeId);
+      } else {
+        state.currentAccountId = hit.nodeId;
+        state.selected = { kind: 'node', id: hit.nodeId };
+      }
+      var grp = Array.from(state.selectedIds)
+        .map(function(id){ var pp = lay[id]; return pp ? { id: id, ox: pp.x, oy: pp.y } : null; })
+        .filter(Boolean);
+      dragState = { kind: 'node', nodeId: hit.nodeId, group: grp, origX: np.x, origY: np.y, startX: e.clientX, startY: e.clientY, moved: false, dropTarget: null, dropRejectTarget: null };
     }
   } else if(hit.kind === 'wire'){
     state.selected = { kind: 'wire', key: hit.key, srcId: hit.srcId, dstId: hit.dstId, wireKind: hit.wireKind || 'via' };
@@ -549,21 +559,26 @@ function onGraphPointerMove(e){
     if(Math.abs(e.clientX - dragState.startX) > 3 || Math.abs(e.clientY - dragState.startY) > 3) dragState.moved = true;
     renderGraph();
   } else if(dragState.kind === 'node'){
-    var p = vaultLayout().nodes[dragState.nodeId];
-    if(!p) return;
-    p.x = Math.round(dragState.origX + (e.clientX - dragState.startX) / state.camera.s);
-    p.y = Math.round(dragState.origY + (e.clientY - dragState.startY) / state.camera.s);
+    var dx = Math.round((e.clientX - dragState.startX) / state.camera.s);
+    var dy = Math.round((e.clientY - dragState.startY) / state.camera.s);
+    var multi = dragState.group.length > 1;
+    dragState.group.forEach(function(m){
+      var p = vaultLayout().nodes[m.id];
+      if(p){ p.x = m.ox + dx; p.y = m.oy + dy; }
+    });
     dragState.moved = true;
-    // подсветка цели для «вложить»: наводим на контейнер (или его строку) — он подсвечивается.
-    // Исключаем саму перетаскиваемую ноду: она под курсором и перекрыла бы цель.
-    var wd = screenToWorld(e.clientX, e.clientY);
-    var hd = hitTest(wd.x, wd.y, dragState.nodeId);
     var target = null, rejectTarget = null;
-    if(hd.kind === 'node'){
-      var ta = accById(hd.nodeId);
-      var cand = (ta && ta.parentId) ? ta.parentId : hd.nodeId; // попадание в строку ребёнка = его контейнер
-      if(validDropTarget(dragState.nodeId, cand)) target = cand;
-      else if(hd.nodeId !== dragState.nodeId) rejectTarget = hd.nodeId; // невалидная цель — красная подсветка + тост при отпускании
+    if(!multi){
+      // подсветка цели для «вложить» (только при одиночном перетаскивании) —
+      // исключаем саму перетаскиваемую ноду: она под курсором и перекрыла бы цель.
+      var wd = screenToWorld(e.clientX, e.clientY);
+      var hd = hitTest(wd.x, wd.y, dragState.nodeId);
+      if(hd.kind === 'node'){
+        var ta = accById(hd.nodeId);
+        var cand = (ta && ta.parentId) ? ta.parentId : hd.nodeId; // попадание в строку ребёнка = его контейнер
+        if(validDropTarget(dragState.nodeId, cand)) target = cand;
+        else if(hd.nodeId !== dragState.nodeId) rejectTarget = hd.nodeId; // невалидная цель — красная подсветка + тост при отпускании
+      }
     }
     dragState.dropTarget = target;
     dragState.dropRejectTarget = rejectTarget;
