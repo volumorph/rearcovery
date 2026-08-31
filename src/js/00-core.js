@@ -19,6 +19,7 @@ var state = {
   camera: { x: 0, y: 0, s: 1 },
   cameraInitialized: false,
   selected: null,      // {kind:'node'|'wire', ...}
+  selectedIds: new Set(), // мультивыбор нод (box selection)
   search: '',          // фильтр поиска по аккаунтам
   guideSearch: '',     // фильтр поиска в путеводителе
   vaults: [],          // реестр хранилищ: [{id, name, blob, updatedAt}]

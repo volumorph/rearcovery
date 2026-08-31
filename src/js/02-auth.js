@@ -430,7 +430,15 @@ function confirmAuth(){
   deriveKey(pw, state.salt, state.blob.iterations).then(function(key){
     return unlockWithKey(state.blob, key);
   }).then(function(){
-    if(pa.action === 'delete'){
+    if(pa.action === 'delete-multi'){
+      (pa.accountIds || []).forEach(function(id){ deleteAccountNow(id); });
+      state.selectedIds.clear();
+      state.selected = null;
+      state.currentAccountId = null;
+      var selg = $('guide-select');
+      if(selg) selg.value = '';
+      renderGraph();
+    } else if(pa.action === 'delete'){
       deleteAccountNow(pa.accountId);
       closeModal('modal-editor');
     } else {
@@ -442,6 +450,17 @@ function confirmAuth(){
   }).finally(function(){
     btn.disabled = false; btn.textContent = pa.action === 'delete' ? 'Удалить' : 'Изменить';
   });
+}
+function requestAuthMultiple(action, ids){
+  if(state.streamMode){ toast('В режиме стрима данные скрыты — сначала нажмите «Показать данные»'); return; }
+  state.pendingAction = { action: action, accountIds: ids };
+  $('auth-title').textContent = '🗑 Удаление ' + ids.length + ' аккаунтов';
+  $('auth-msg').textContent = 'Вы действительно хотите удалить выбранные ' + ids.length + ' аккаунта(ов) и все их данные? Вложенные сервисы будут откреплены (станут отдельными нодами). Это действие необратимо.';
+  $('btn-auth').textContent = 'Удалить';
+  $('auth-pass').value = '';
+  $('auth-err').textContent = '';
+  openModal('modal-auth');
+  $('auth-pass').focus();
 }
 function requestDeleteAccount(id){ requestAuth('delete', id); }
 function requestAccountEdit(id){ requestAuth('edit', id); }

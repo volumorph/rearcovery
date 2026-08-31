@@ -1,0 +1,70 @@
+// Тесты box selection: рамка выделяет ноды по пересечению прямоугольников,
+// Shift-драг — аддитивность, клик по пустому — сброс.
+// Запуск:  node --test   (или npm test)
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { loadApp } from './helpers.mjs';
+
+function vaultWith(accounts) {
+  return {
+    version: 1,
+    accounts,
+    layout: {
+      nodes: Object.fromEntries(accounts.map((a) => [a.id, { x: a.x, y: a.y }])),
+      camera: null,
+    },
+  };
+}
+
+test('boxNodes: рамка пересекает прямоугольники нод', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'a', name: 'A', type: 'mail', x: 0, y: 0 },
+    { id: 'b', name: 'B', type: 'mail', x: 300, y: 0 },
+    { id: 'c', name: 'C', type: 'mail', x: 0, y: 150 },
+  ]);
+  // NODE_W=190, NODE_H=86.
+  assert.deepEqual([...sandbox.boxNodes({ x1: -5, y1: -5, x2: 100, y2: 100 })].sort(), ['a'], 'только A');
+  assert.deepEqual([...sandbox.boxNodes({ x1: -5, y1: -5, x2: 190, y2: 86 })].sort(), ['a'], 'A целиком');
+  assert.deepEqual([...sandbox.boxNodes({ x1: 290, y1: -5, x2: 500, y2: 200 })].sort(), ['b'], 'только B');
+  assert.deepEqual([...sandbox.boxNodes({ x1: -5, y1: -5, x2: 500, y2: 300 })].sort(), ['a', 'b', 'c'], 'все');
+  assert.deepEqual([...sandbox.boxNodes({ x1: -5, y1: -5, x2: 100, y2: 100 })].sort(), ['a'], 'повторная рамка');
+});
+
+test('applyBoxSelection: замена и аддитивное добавление', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([{ id: 'a', name: 'A', type: 'mail', x: 0, y: 0 }]);
+  sandbox.applyBoxSelection(['a'], false);
+  assert.deepEqual([...sandbox.state.selectedIds], ['a']);
+  assert.equal(sandbox.state.selected, null, 'box selection не трогает одиночный selected');
+  sandbox.applyBoxSelection(['b'], false);
+  assert.deepEqual([...sandbox.state.selectedIds], ['b'], 'замена');
+  sandbox.state.selectedIds.add('a');
+  sandbox.applyBoxSelection(['b', 'c'], true);
+  assert.deepEqual([...sandbox.state.selectedIds].sort(), ['a', 'b', 'c'], 'аддитивно');
+  sandbox.applyBoxSelection(['x'], true);
+  assert.deepEqual([...sandbox.state.selectedIds].sort(), ['a', 'b', 'c', 'x'], 'аддитивно к существующим');
+});
+
+test('boxNodes игнорирует вложенные сервисы и скрытые при поиске', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.vault = vaultWith([
+    { id: 'p', name: 'P', type: 'mail', x: 0, y: 0 },
+    { id: 'child', name: 'C', type: 'telegram-notify', parentId: 'p', x: 0, y: 0 },
+  ]);
+  // Вложенный не даёт отдельной позиции — это его layout может быть удалён.
+  delete sandbox.state.vault.layout.nodes.child;
+  assert.deepEqual([...sandbox.boxNodes({ x1: -500, y1: -500, x2: 500, y2: 500 })].sort(), ['p'], 'только верхнеуровневая нода');
+});
+
+test('isNodeSelected: учитывает selectedIds и одиночный selected', () => {
+  const { sandbox } = loadApp();
+  sandbox.state.selectedIds = new Set(['a', 'b']);
+  sandbox.state.selected = null;
+  assert.equal(sandbox.isNodeSelected('a'), true);
+  assert.equal(sandbox.isNodeSelected('b'), true);
+  assert.equal(sandbox.isNodeSelected('c'), false);
+  sandbox.state.selected = { kind: 'node', id: 'x' };
+  assert.equal(sandbox.isNodeSelected('x'), true, 'одиночный selected тоже выделен');
+});
