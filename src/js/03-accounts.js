@@ -29,8 +29,20 @@ function dupPasswordGroups(){
     groups.get(a.password).push(a);
   });
   var res = [];
-  groups.forEach(function(accs){ if(accs.length > 1) res.push(accs); });
+  groups.forEach(function(accs){
+    // пара «Telegram (восстановление)» + «Telegram (уведомления)», возникшая при
+    // разбиении одного старого Telegram, — не дубль, это одна и та же учётка
+    if(accs.length === 2 && tgSplitPair(accs[0], accs[1])) return;
+    if(accs.length > 1) res.push(accs);
+  });
   return res;
+}
+function tgSplitPair(a, b){
+  var isTg = function(x){ return x.type === 'telegram-notify' || x.type === 'telegram-recovery'; };
+  if(!isTg(a) || !isTg(b) || a.type === b.type) return false;
+  var n1 = (a.name || '').replace(/ \(уведомления\)$/, '');
+  var n2 = (b.name || '').replace(/ \(уведомления\)$/, '');
+  return n1 === n2 && (a.parentId || null) === (b.parentId || null);
 }
 function dupPasswordIds(){
   var s = new Set();
@@ -79,7 +91,7 @@ function accountCard(a, dupIds, nested){
   var nch = containerChildren(a).length;
   if(nch) badges.push(nch + ' вложено');
   var meta = via ? 'восстанавливается через ' + esc(via.name || '?') : '';
-  if(a.type === 'telegram' && a.notifyEmailId){
+  if(a.type === 'telegram-notify' && a.notifyEmailId){
     var nf = state.vault.accounts.find(function(x){ return x.id === a.notifyEmailId; });
     meta += (meta ? ' · ' : '') + 'уведомления → ' + esc(nf ? (nf.name || '?') : '?');
   }
@@ -186,10 +198,10 @@ function openEditor(id){
     + '<div class="field"><label>Заметки</label><textarea id="ed-notes" rows="2">' + esc(f.notes) + '</textarea></div>'
 
     + '<div class="subhead">🔁 Восстановление доступа</div>'
-    + '<div class="field"><label id="ed-via-label">Этот аккаунт восстанавливается через</label><select id="ed-via">' + viaOpts + '</select>'
-    + '<div class="hint">Выберите другой аккаунт (например, почту, к которой привязано восстановление). Так строится маршрут в «Путеводителе».</div></div>'
+    + '<div id="ed-via-wrap"><div class="field"><label>Этот аккаунт восстанавливается через</label><select id="ed-via">' + viaOpts + '</select>'
+    + '<div class="hint">Выберите другой аккаунт (например, почту, к которой привязано восстановление). Так строится маршрут в «Путеводителе». Для «Telegram (восстановление)» это исходная почта — красный выход ноды.</div></div></div>'
     + '<div id="ed-notify-wrap" style="display:none"><div class="field"><label>🔔 Почта для уведомлений</label><select id="ed-notify">' + notifyOpts + '</select>'
-    + '<div class="hint">Почта, на которую Telegram шлёт уведомления о входе. На графе — зелёный выход ноды.</div></div></div>'
+    + '<div class="hint">Почта, на которую Telegram шлёт уведомления о входе. На графе — зелёный выход ноды (только у «Telegram (уведомления)»).</div></div></div>'
     + '<div class="field"><label>Резервные коды</label><textarea id="ed-codes" rows="2" placeholder="Одноразовые коды восстановления, по одному на строку">' + esc(f.recovery.codes) + '</textarea></div>'
     + '<div class="grid2">'
     + '<div class="field"><label>Телефон / резервная почта</label><input id="ed-phone" value="' + esc(f.recovery.phone) + '"></div>'
@@ -214,11 +226,11 @@ function openEditor(id){
   openModal('modal-editor');
 }
 function syncNotifyField(){
-  var isTg = ($('ed-type') || {}).value === 'telegram';
+  var t = ($('ed-type') || {}).value;
   var wrap = $('ed-notify-wrap');
-  if(wrap) wrap.style.display = isTg ? '' : 'none';
-  var lb = $('ed-via-label');
-  if(lb) lb.textContent = isTg ? 'Исходная почта (восстановление Telegram)' : 'Этот аккаунт восстанавливается через';
+  if(wrap) wrap.style.display = t === 'telegram-notify' ? '' : 'none';
+  var viaWrap = $('ed-via-wrap');
+  if(viaWrap) viaWrap.style.display = t === 'telegram-notify' ? 'none' : '';
 }
 
 function questionRow(q, a){

@@ -176,6 +176,8 @@ function tryUnlock(){
     state.vaultId = entry.id; state.blob = blob;
     if(blob.ekPass && blob.ekSeed){ state.seedWrap = {iv: blob.ekSeedIv, ct: blob.ekSeed}; state.seedIterations = blob.seedIterations; }
     else { state.seedWrap = null; state.seedIterations = null; }
+    // миграция ролей Telegram; если что-то разбилось — сразу сохраняем новый формат
+    if(migrateVaultTg(state.vault)) scheduleSave();
   }).then(function(){ enterMain(); })
     .catch(function(){ err.textContent = 'Неверный мастер-пароль.'; $('unlock-pass').select(); })
     .finally(function(){ btn.disabled = false; btn.textContent = 'Разблокировать'; });
@@ -370,6 +372,9 @@ function doStrengthenKdf(){
 function saveAccount(){
   var a = readEditorForm();
   if(!a.name.trim()){ toast('Укажите название аккаунта'); return; }
+  // у ролей Telegram ровно один выход: уведомления не имеют «исходной почты», восстановление — «почты уведомлений»
+  if(a.type === 'telegram-notify') a.recovery.viaAccountId = null;
+  if(a.type === 'telegram-recovery') a.notifyEmailId = null;
   if(a.recovery.viaAccountId === a.id){ toast('Аккаунт не может восстанавливаться сам через себя'); return; }
   if(a.notifyEmailId === a.id){ toast('Почта уведомлений не может быть самим аккаунтом'); return; }
   if(a.parentId){

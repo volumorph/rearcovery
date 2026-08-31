@@ -56,6 +56,56 @@ function effectiveVia(a){
   return (a.recovery && a.recovery.viaAccountId) || a.parentId || null;
 }
 
+/* ================= Роли Telegram =================
+ * С v1.0.44 Telegram — это две отдельные роли вместо одного типа с двумя
+ * выходами: «telegram-notify» (зелёный выход — почта для уведомлений) и
+ * «telegram-recovery» (красный выход — исходная почта, через которую
+ * восстанавливается). У каждой роли ровно один выход, никаких лишних сокетов
+ * на контейнере после вложения. */
+function isTelegram(a){ return !!(a && (a.type === 'telegram-notify' || a.type === 'telegram-recovery')); }
+function isTelegramNotify(a){ return !!(a && a.type === 'telegram-notify'); }
+function isTelegramRec(a){ return !!(a && a.type === 'telegram-recovery'); }
+
+/* Миграция старого «telegram» (два выхода: via + notify):
+ *  - обе связи есть  → принудительно разбиваем на две ноды (recovery + notify);
+ *    оригинальный id остаётся у «восстановления», чтобы внешние ссылки других
+ *    аккаунтов (via/notify/parentId) не оборвались; клон «уведомлений» получает
+ *    суффикс в имени;
+ *  - только via       → telegram-recovery;
+ *  - только notify    → telegram-notify;
+ *  - ничего           → telegram-recovery (красный выход, без связи).
+ * Возвращает число изменённых аккаунтов. Идемпотентна: новые типы не трогает. */
+function migrateVaultTg(vault){
+  if(!vault || !Array.isArray(vault.accounts)) return 0;
+  var changed = 0;
+  var out = [];
+  vault.accounts.forEach(function(a){
+    if(!a || a.type !== 'telegram'){ out.push(a); return; }
+    changed++;
+    if(!a.recovery) a.recovery = { viaAccountId: null, codes: '', phone: '', notes: '', questions: [] };
+    var via = a.recovery.viaAccountId ? a.recovery.viaAccountId : null;
+    var notify = a.notifyEmailId || null;
+    if(via && notify){
+      var rec = { id: a.id, type: 'telegram-recovery', name: a.name || '', username: a.username || '', password: a.password || '', notes: a.notes || '', parentId: a.parentId || null, recovery: { viaAccountId: via, codes: (a.recovery && a.recovery.codes) || '', phone: (a.recovery && a.recovery.phone) || '', notes: (a.recovery && a.recovery.notes) || '', questions: (a.recovery && a.recovery.questions) || [] }, notifyEmailId: null, shared: a.shared || [] };
+      var ntf = { id: uid(), type: 'telegram-notify', name: (a.name || 'Telegram') + ' (уведомления)', username: a.username || '', password: a.password || '', notes: a.notes || '', parentId: a.parentId || null, recovery: { viaAccountId: null, codes: '', phone: '', notes: '', questions: [] }, notifyEmailId: notify, shared: [] };
+      out.push(rec, ntf);
+    } else if(via){
+      a.type = 'telegram-recovery';
+      a.notifyEmailId = null;
+      out.push(a);
+    } else if(notify){
+      a.type = 'telegram-notify';
+      a.recovery.viaAccountId = null;
+      out.push(a);
+    } else {
+      a.type = 'telegram-recovery'; // без связей — роль «восстановление» с красным выходом
+      out.push(a);
+    }
+  });
+  vault.accounts = out;
+  return changed;
+}
+
 /* ================= Утилиты ================= */
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
@@ -131,7 +181,8 @@ var ACCOUNT_TYPES = {
   'proton':    { label: 'Proton', tile: '#6d4aff', svg: envGlyph() },
   'mailru':    { label: 'Mail.ru', tile: '#005FF9', svg: atGlyph() },
   'mega':      { label: 'MEGA', tile: '#d9272e', svg: megaGlyph() },
-  'telegram':  { label: 'Telegram', tile: '#ffffff', svg: telegramGlyph() },
+  'telegram-notify':    { label: 'Telegram (уведомления)', tile: '#ffffff', svg: telegramGlyph() },
+  'telegram-recovery':  { label: 'Telegram (восстановление)', tile: '#ffffff', svg: telegramGlyph() },
   'instagram': { label: 'Instagram', tile: 'grad', svg: igGlyph() },
   'genshin':   { label: 'Genshin Impact', tile: '#1d2333', svg: sparkGlyph() },
   'bank':      { label: 'Банк', tile: '#2e9e5b', svg: bankGlyph() },

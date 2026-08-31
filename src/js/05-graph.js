@@ -63,14 +63,6 @@ function ensureLayout(){
 
 function accById(id){ return state.vault.accounts.find(function(a){ return a.id === id; }); }
 
-/* Единственный вложенный Telegram контейнера (для красного/зелёного сокетов
- * и проводов): только если Telegram внутри ровно один и контейнер сам не Telegram. */
-function nestedTelegramOf(a){
-  if(!a || a.type === 'telegram') return null;
-  var ts = containerChildren(a).filter(function(c){ return c.type === 'telegram'; });
-  return ts.length === 1 ? ts[0] : null;
-}
-
 function renderGraph(){
   var el = $('graph-canvas');
   if(!state.vault) return;
@@ -184,7 +176,7 @@ function wiresSvg(){
   var nm = function(x){ return streamName(x); };
   state.vault.accounts.forEach(function(a){
     if(a.parentId) return; // у вложенных сервисов нет проводов: они внутри контейнера
-    var isTg = a.type === 'telegram';
+    var isTgRec = a.type === 'telegram-recovery';
     var via = a.recovery ? a.recovery.viaAccountId : null;
     if(via && (!vis || (vis.has(a.id) && vis.has(via)))){
       var d = wirePathFor(a, via, 0);
@@ -193,16 +185,16 @@ function wiresSvg(){
         var sel = key === selKey;
         var inChainWire = chain && chain.has(a.id) && chain.has(via);
         var dimWire = !!chain && !inChainWire;
-        var col = sel ? '#f5a623' : (inChainWire ? '#4da3ff' : (isTg ? '#e05a5a' : '#77808c'));
+        var col = sel ? '#f5a623' : (inChainWire ? '#4da3ff' : (isTgRec ? '#e05a5a' : '#77808c'));
         var wdt = sel ? 2.8 : (inChainWire ? 2.6 : 1.8);
         var dst = accById(via);
-        var mkr = isTg ? 'url(#garr-red)' : 'url(#garr)';
+        var mkr = isTgRec ? 'url(#garr-red)' : 'url(#garr)';
         out.push('<path class="g-wire" data-kind="via" data-src="' + esc(a.id) + '" data-key="' + esc(key) + '" d="' + d + '"' + (dimWire ? ' opacity="0.3"' : '') + ' fill="none" stroke="' + col + '" stroke-width="' + wdt + '" marker-end="' + mkr + '">'
-          + '<title>' + (isTg ? 'Исходная почта: ' : '') + '«' + esc(nm(a)) + '» восстанавливается через «' + esc(dst ? nm(dst) : '?') + '». Кликните и нажмите Del, чтобы разорвать.</title></path>');
+          + '<title>' + (isTgRec ? 'Исходная почта: ' : '') + '«' + esc(nm(a)) + '» восстанавливается через «' + esc(dst ? nm(dst) : '?') + '». Кликните и нажмите Del, чтобы разорвать.</title></path>');
         out.push('<path d="' + d + '" fill="none" stroke="transparent" stroke-width="14" pointer-events="all"/>');
       }
     }
-    if(isTg && a.notifyEmailId && (!vis || (vis.has(a.id) && vis.has(a.notifyEmailId)))){
+    if(a.type === 'telegram-notify' && a.notifyEmailId && (!vis || (vis.has(a.id) && vis.has(a.notifyEmailId)))){
       var dn = wirePathFor(a, a.notifyEmailId, 16);
       if(dn){
         var nkey = a.id + '~' + a.notifyEmailId;
@@ -214,39 +206,6 @@ function wiresSvg(){
         out.push('<path d="' + dn + '" fill="none" stroke="transparent" stroke-width="14" pointer-events="all"/>');
       }
     }
-    // вложенный Telegram: его провода рисуются от контейнера (красный — исходная
-    // почта наружу, зелёный — уведомления); на родителя провод не рисуется (дефолт)
-    var tg2 = nestedTelegramOf(a);
-    if(tg2){
-      var tgVia = tg2.recovery ? tg2.recovery.viaAccountId : null;
-      if(tgVia && tgVia !== a.id && (!vis || (vis.has(a.id) && vis.has(tgVia)))){
-        var d3 = wirePathFor(a, tgVia, 16);
-        if(d3){
-          var k3 = tg2.id + '>' + tgVia;
-          var s3 = k3 === selKey;
-          var i3 = chain && chain.has(tg2.id) && chain.has(tgVia);
-          var dm3 = !!chain && !i3;
-          var dst3 = accById(tgVia);
-          out.push('<path class="g-wire" data-kind="via" data-src="' + esc(tg2.id) + '" data-key="' + esc(k3) + '" d="' + d3 + '"' + (dm3 ? ' opacity="0.3"' : '') + ' fill="none" stroke="' + (s3 ? '#f5a623' : (i3 ? '#4da3ff' : '#e05a5a')) + '" stroke-width="' + (s3 ? 2.8 : (i3 ? 2.6 : 1.8)) + '" marker-end="url(#garr-red)">'
-            + '<title>«' + esc(nm(tg2)) + '» (вложен в «' + esc(nm(a)) + '») восстанавливается через «' + esc(dst3 ? nm(dst3) : '?') + '». Кликните и нажмите Del, чтобы убрать связь.</title></path>');
-          out.push('<path d="' + d3 + '" fill="none" stroke="transparent" stroke-width="14" pointer-events="all"/>');
-        }
-      }
-      var tgN = tg2.notifyEmailId;
-      // если красный и зелёный ведут на одну и ту же почту — рисуем только красный (восстановление), зелёный дублирует
-      if(tgN && tgN !== a.id && tgN !== tgVia && (!vis || (vis.has(a.id) && vis.has(tgN)))){
-        var d4 = wirePathFor(a, tgN, 32);
-        if(d4){
-          var k4 = tg2.id + '~' + tgN;
-          var s4 = k4 === selKey;
-          var dm4 = !!chain && (!chain.has(tg2.id) || !chain.has(tgN));
-          var dst4 = accById(tgN);
-          out.push('<path class="g-wire" data-kind="notify" data-src="' + esc(tg2.id) + '" data-key="' + esc(k4) + '" d="' + d4 + '"' + (dm4 ? ' opacity="0.3"' : '') + ' fill="none" stroke="' + (s4 ? '#f5a623' : '#4caf7d') + '" stroke-width="' + (s4 ? 2.8 : 1.8) + '" marker-end="url(#garr-green)">'
-            + '<title>«' + esc(nm(tg2)) + '» (вложен в «' + esc(nm(a)) + '») шлёт уведомления на «' + esc(dst4 ? nm(dst4) : '?') + '». Кликните и нажмите Del, чтобы убрать связь.</title></path>');
-          out.push('<path d="' + d4 + '" fill="none" stroke="transparent" stroke-width="14" pointer-events="all"/>');
-        }
-      }
-    }
   });
   return out.join('');
 }
@@ -254,7 +213,7 @@ function wiresSvg(){
 function nodeHeaderColor(a){
   var t = ACCOUNT_TYPES[a.type] || ACCOUNT_TYPES[''];
   if(a.type === 'google') return '#4285f4';
-  if(a.type === 'telegram') return '#229ed9';
+  if(a.type === 'telegram-recovery' || a.type === 'telegram-notify') return '#229ed9';
   if(t.tile === 'grad') return 'url(#' + igGradId + ')';
   return t.tile || '#66788f';
 }
@@ -290,7 +249,6 @@ function nodesSvg(){
       ? ''
       : '<text x="10" y="' + (HEADER_H + 48) + '" font-size="10.5" fill="#e05a5a">пароль не записан</text>';
     var dispName = streamName(a);
-    var tg = nestedTelegramOf(a); // красный/зелёный сокеты вложенного Telegram
     // вложенные сервисы: строки с иконкой внутри ноды-контейнера
     var ch = containerChildren(a);
     var collapsed = state.collapsedParents.has(a.id);
@@ -336,19 +294,14 @@ function nodesSvg(){
       + chRows
       + '<circle class="g-sock" cx="0" cy="' + SOCKET_Y + '" r="6" fill="#5a5f69" stroke="#1d2126" stroke-width="1.5">'
       + '<title>Вход: аккаунты, которые восстанавливаются через «' + esc(nm(a)) + '». Потяните в пустоту, чтобы отсоединить.</title></circle>'
-      + (a.type === 'telegram'
+      + (a.type === 'telegram-recovery'
           ? '<circle class="g-sock" cx="' + NODE_W + '" cy="' + SOCKET_Y + '" r="6" fill="#e05a5a" stroke="#1d2126" stroke-width="1.5">'
           + '<title>Исходная почта: «' + esc(nm(a)) + '» восстанавливается через неё. Тяните на вход другого узла.</title></circle>'
-          + '<circle class="g-sock" cx="' + NODE_W + '" cy="' + (SOCKET_Y + 16) + '" r="6" fill="#4caf7d" stroke="#1d2126" stroke-width="1.5">'
-          + '<title>Почта для уведомлений: Telegram шлёт сюда уведомления о входе. Тяните на вход другого узла.</title></circle>'
-          : '<circle class="g-sock" cx="' + NODE_W + '" cy="' + SOCKET_Y + '" r="6" fill="#5a7dff" stroke="#1d2126" stroke-width="1.5">'
-          + '<title>Выход: «' + esc(nm(a)) + '» восстанавливается через другой аккаунт. Тяните на вход другого узла.</title></circle>')
-      + (tg
-          ? '<circle class="g-sock" cx="' + NODE_W + '" cy="' + (SOCKET_Y + 16) + '" r="6" fill="#e05a5a" stroke="#1d2126" stroke-width="1.5">'
-          + '<title>Исходная почта вложенного «' + esc(nm(tg)) + '»: через какой аккаунт он восстанавливается (по умолчанию — этот контейнер). Тяните на вход другого узла.</title></circle>'
-          + '<circle class="g-sock" cx="' + NODE_W + '" cy="' + (SOCKET_Y + 32) + '" r="6" fill="#4caf7d" stroke="#1d2126" stroke-width="1.5">'
-          + '<title>Уведомления вложенного «' + esc(nm(tg)) + '»: сюда он шлёт уведомления о входе. Тяните на вход другого узла.</title></circle>'
-          : '')
+          : a.type === 'telegram-notify'
+              ? '<circle class="g-sock" cx="' + NODE_W + '" cy="' + (SOCKET_Y + 16) + '" r="6" fill="#4caf7d" stroke="#1d2126" stroke-width="1.5">'
+              + '<title>Почта для уведомлений: «' + esc(nm(a)) + '» шлёт сюда уведомления о входе. Тяните на вход другого узла.</title></circle>'
+              : '<circle class="g-sock" cx="' + NODE_W + '" cy="' + SOCKET_Y + '" r="6" fill="#5a7dff" stroke="#1d2126" stroke-width="1.5">'
+              + '<title>Выход: «' + esc(nm(a)) + '» восстанавливается через другой аккаунт. Тяните на вход другого узла.</title></circle>')
       + '</g>');
   });
   return out.join('');
@@ -368,12 +321,7 @@ function hitTest(wx, wy, excludeId){
     if(!p) continue;
     if(Math.hypot(wx - p.x, wy - (p.y + SOCKET_Y)) <= 13) return { kind: 'input', nodeId: a.id };
     if(Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y)) <= 13) return { kind: 'output', nodeId: a.id, out: 'via' };
-    if(a.type === 'telegram' && Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 16)) <= 13) return { kind: 'output', nodeId: a.id, out: 'notify' };
-    var tgs = nestedTelegramOf(a);
-    if(tgs){
-      if(Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 16)) <= 13) return { kind: 'output', nodeId: a.id, out: 'childVia', childId: tgs.id };
-      if(Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 32)) <= 13) return { kind: 'output', nodeId: a.id, out: 'childNotify', childId: tgs.id };
-    }
+    if(a.type === 'telegram-notify' && Math.hypot(wx - (p.x + NODE_W), wy - (p.y + SOCKET_Y + 16)) <= 13) return { kind: 'output', nodeId: a.id, out: 'notify' };
   }
   // строки вложенных сервисов и тела нод
   for(i = accounts.length - 1; i >= 0; i--){
@@ -411,14 +359,7 @@ function hitTest(wx, wy, excludeId){
     if(vis && !vis.has(a.id)) return;
     var via = a.recovery ? a.recovery.viaAccountId : null;
     if(via && (!vis || vis.has(via))) wireHit(a, via, 0, 'via');
-    if(a.type === 'telegram' && a.notifyEmailId && (!vis || vis.has(a.notifyEmailId))) wireHit(a, a.notifyEmailId, 16, 'notify');
-    var tg3 = nestedTelegramOf(a);
-    if(tg3){
-      var tv3 = tg3.recovery ? tg3.recovery.viaAccountId : null;
-      if(tv3 && tv3 !== a.id && (!vis || vis.has(tv3))) wireHit(a, tv3, 16, 'via', tg3.id);
-      var tn3 = tg3.notifyEmailId;
-      if(tn3 && tn3 !== a.id && tn3 !== tv3 && (!vis || vis.has(tn3))) wireHit(a, tn3, 32, 'notify', tg3.id);
-    }
+    if(a.type === 'telegram-notify' && a.notifyEmailId && (!vis || vis.has(a.notifyEmailId))) wireHit(a, a.notifyEmailId, 16, 'notify');
   });
   return best || { kind: 'bg' };
 }
@@ -510,7 +451,7 @@ function onGraphPointerDown(e){
   if(hit.kind === 'output'){
     state.selected = null;
     var p = lay[hit.nodeId];
-    var ody = hit.out === 'notify' ? 16 : (hit.out === 'childNotify' ? 32 : (hit.out === 'childVia' ? 16 : 0));
+    var ody = hit.out === 'notify' ? 16 : 0;
     dragState = { kind: 'wire', from: 'out', nodeId: hit.nodeId, out: hit.out || 'via', childId: hit.childId || null, sx: p.x + NODE_W, sy: p.y + SOCKET_Y + ody, tempPath: tempWirePath(p.x + NODE_W, p.y + SOCKET_Y + ody, w.x, w.y) };
     renderGraph();
   } else if(hit.kind === 'input'){
@@ -611,13 +552,6 @@ function onGraphPointerUp(e){
       if(d.out === 'notify'){
         if(hit.kind === 'input' && hit.nodeId !== d.nodeId) setNotify(d.nodeId, hit.nodeId);
         else if(hit.kind === 'bg' || hit.kind === 'wire') setNotify(d.nodeId, null);
-      } else if(d.out === 'childVia'){
-        // сокет вложенного Telegram: можно кинуть и на родителя (вернуть дефолт)
-        if(hit.kind === 'input') setVia(d.childId, hit.nodeId);
-        else if(hit.kind === 'bg' || hit.kind === 'wire') setVia(d.childId, null);
-      } else if(d.out === 'childNotify'){
-        if(hit.kind === 'input') setNotify(d.childId, hit.nodeId);
-        else if(hit.kind === 'bg' || hit.kind === 'wire') setNotify(d.childId, null);
       } else {
         if(hit.kind === 'input' && hit.nodeId !== d.nodeId) setVia(d.nodeId, hit.nodeId);
         else if(hit.kind === 'bg' || hit.kind === 'wire') setVia(d.nodeId, null);

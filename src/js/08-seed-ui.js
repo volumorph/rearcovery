@@ -212,6 +212,7 @@ function doSeedRecover(){
           state.seedWrap = { iv: blob.ekSeedIv, ct: blob.ekSeed };
           state.seedIterations = blob.seedIterations || SEED_KDF_ITERATIONS;
           state.vault = vault;
+          migrateVaultTg(state.vault); // роли Telegram: старый формат разбивается до сохранения
           state.vault.seedEnabled = true;
           state.salt = newSalt;
           state.blob = blob;

@@ -95,7 +95,7 @@ function updateChainHighlight(){
     var sel = state.selected && state.selected.kind === 'wire' && state.selected.key === key;
     var dim = !!chain && !inChain;
     var src = accById(w.getAttribute('data-src'));
-    var base = kind === 'notify' ? '#4caf7d' : (src && src.type === 'telegram' ? '#e05a5a' : '#77808c');
+    var base = kind === 'notify' ? '#4caf7d' : (src && src.type === 'telegram-recovery' ? '#e05a5a' : '#77808c');
     w.setAttribute('opacity', dim ? '0.3' : '1');
     w.setAttribute('stroke', sel ? '#f5a623' : (kind === 'via' && inChain ? '#4da3ff' : base));
     w.setAttribute('stroke-width', sel ? '2.8' : (kind === 'via' && inChain ? '2.6' : '1.8'));
@@ -250,7 +250,7 @@ function renderGuideDetail(id){
       + (r.codes ? '<div class="kv"><span>Резервные коды</span><pre>' + esc(r.codes) + '</pre><button class="btn-mini" onclick="copyText(' + esc(jsStr(r.codes)) + ')">Копировать</button></div>' : '')
       + (r.phone ? '<div class="kv"><span>Телефон / резерв</span><code>' + esc(r.phone) + '</code><span></span></div>' : '')
       + (r.notes ? '<div class="kv"><span>Прочее</span><code>' + esc(r.notes) + '</code><span></span></div>' : '')
-      + (a.type === 'telegram' && a.notifyEmailId
+      + (a.type === 'telegram-notify' && a.notifyEmailId
           ? '<div class="kv"><span>Почта уведомлений</span><code>' + esc(((byId.get(a.notifyEmailId) || {}).name) || '?') + '</code><span></span></div>' : '')
       + (r.questions || []).filter(function(q){ return q.a; }).map(function(q){
         return '<div class="kv"><span>Вопрос: ' + esc(q.q || '—') + '</span><code>' + esc(q.a) + '</code>'
