@@ -11,7 +11,7 @@ function seedVault(sandbox, opts) {
   // минимальное разблокированное состояние для тестов индикатора
   sandbox.state.vault = { version: 1, accounts: opts.accounts || [] };
   sandbox.state.vaults = [{
-    id: 'v1', name: 'V', blob: opts.blob ?? null,
+    id: 'v1', name: opts.name ?? 'V', blob: opts.blob ?? null,
     updatedAt: opts.updatedAt || 0,
     lastExportAt: opts.lastExportAt || null,
     fileName: opts.fileName || null,
@@ -64,31 +64,29 @@ test('backupInfo: устарел только если изменение — в
   assert.equal(doc.el('backup-status').className, 'bup-ok');
 });
 
-test('markExported: фиксирует время экспорта, делает бэкап актуальным и помнит имя файла', () => {
+test('markExported: фиксирует время экспорта, делает бэкап актуальным', () => {
   const { sandbox, doc, storage } = loadApp();
   seedVault(sandbox, { accounts: [{ id: 'a1' }], updatedAt: DAY1 });
 
-  sandbox.markExported('my-backup.json');
+  sandbox.markExported();
   assert.ok(sandbox.state.vaults[0].lastExportAt > 0);
-  assert.equal(sandbox.state.vaults[0].fileName, 'my-backup.json');
   assert.equal(doc.el('backup-status').className, 'bup-ok');
 
-  // имя файла и lastExportAt попадают в localStorage-реестр
+  // время экспорта попадает в localStorage-реестр
   const saved = JSON.parse(storage.getItem('pvg.vaults.v1'));
   assert.ok(saved[0].lastExportAt > 0);
-  assert.equal(saved[0].fileName, 'my-backup.json');
 });
 
-test('exportFileName: помнит оригинальное имя, иначе дефолтное с датой', () => {
+test('exportFileName: имя файла = имя хранилища, иначе дефолтное с датой', () => {
   const { sandbox } = loadApp();
 
-  // без сохранённого имени — дефолтное paroli-vault-ГГГГ-ММ-ДД.json
-  seedVault(sandbox, { accounts: [{ id: 'a1' }] });
+  // без имени — дефолтное paroli-vault-ГГГГ-ММ-ДД.json
+  seedVault(sandbox, { accounts: [{ id: 'a1' }], name: '' });
   assert.match(sandbox.exportFileName(), /^paroli-vault-\d{4}-\d{2}-\d{2}\.json$/);
 
-  // после импорта/экспорта — оригинальное имя файла
-  seedVault(sandbox, { accounts: [{ id: 'a1' }], fileName: 'rearcovery-2026.json' });
-  assert.equal(sandbox.exportFileName(), 'rearcovery-2026.json');
+  // имя файла = имя хранилища + .json (не отдельное fileName)
+  seedVault(sandbox, { accounts: [{ id: 'a1' }], name: 'Мой сейф' });
+  assert.equal(sandbox.exportFileName(), 'Мой сейф.json');
 });
 
 test('applyImport: сохраняет имя файла и сообщает дату сохранения + версию формата', async () => {
@@ -102,16 +100,15 @@ test('applyImport: сохраняет имя файла и сообщает да
   sandbox.applyImport(JSON.stringify(blob), 'Мой сейф.json');
   const entry = sandbox.state.vaults[0];
   assert.equal(entry.name, 'Мой сейф');
-  assert.equal(entry.fileName, 'Мой сейф.json');
+  assert.equal(entry.fileName, undefined);
   assert.equal(entry.blob.app, 'password-vault');
   // в тосте — «сохранено» и «формат v1.2»
   assert.match(doc.el('toast').textContent, /сохранено:/);
   assert.match(doc.el('toast').textContent, /формат v1\.2/);
 
-  // импорт из текста (без имени файла) — дефолтное имя, fileName = null
+  // импорт из текста (без имени файла) — дефолтное имя
   sandbox.applyImport(JSON.stringify(blob));
   const second = sandbox.state.vaults[1];
-  assert.equal(second.fileName, null);
   assert.match(second.name, /Импорт/);
 });
 

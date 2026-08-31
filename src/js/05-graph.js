@@ -451,6 +451,7 @@ function selectNode(id){
   updateGraphTitleNotes(id);
 }
 
+
 function selectFromList(id){
   state.currentAccountId = id;
   state.selected = { kind: 'node', id: id };
@@ -513,23 +514,31 @@ function onGraphPointerDown(e){
   } else if(hit.kind === 'node'){
     var acc = accById(hit.nodeId);
     var np = lay[hit.nodeId];
-    if(acc && acc.parentId && e.altKey){
-      // Alt + перетаскивание вложенного сервиса — «вытащить» из контейнера
-      selectNode(hit.nodeId);
-      dragState = { kind: 'extract', nodeId: hit.nodeId, wx: w.x, wy: w.y, startX: e.clientX, startY: e.clientY, moved: false };
-    } else if(np){ // у вложенного сервиса нет своей позиции — только выбор, без перетаскивания
-      // если нода уже в выделении — тащим ВСЮ группу; иначе выделяем только её
-      if(!state.selectedIds.has(hit.nodeId)){
+    if(acc && acc.parentId){
+      // вложенный сервис: у него нет своей позиции на карте — только выбор,
+      // без перетаскивания. Клик (и Shift+клик) выделяет его и показывает
+      // данные в боковой панели; Alt+драг — «вытащить» из контейнера.
+      if(e.altKey){
         selectNode(hit.nodeId);
+        dragState = { kind: 'extract', nodeId: hit.nodeId, wx: w.x, wy: w.y, startX: e.clientX, startY: e.clientY, moved: false };
       } else {
-        state.currentAccountId = hit.nodeId;
-        state.selected = { kind: 'node', id: hit.nodeId };
+        selectNode(hit.nodeId);
+        renderGraph();
       }
-      var grp = Array.from(state.selectedIds)
-        .map(function(id){ var pp = lay[id]; return pp ? { id: id, ox: pp.x, oy: pp.y } : null; })
-        .filter(Boolean);
-      dragState = { kind: 'node', nodeId: hit.nodeId, group: grp, origX: np.x, origY: np.y, startX: e.clientX, startY: e.clientY, moved: false, dropTarget: null, dropRejectTarget: null };
+      e.preventDefault();
+      return;
     }
+    // верхнеуровневая нода: если уже в выделении — тащим ВСЮ группу; иначе выделяем только её
+    if(!state.selectedIds.has(hit.nodeId)){
+      selectNode(hit.nodeId);
+    } else {
+      state.currentAccountId = hit.nodeId;
+      state.selected = { kind: 'node', id: hit.nodeId };
+    }
+    var grp = Array.from(state.selectedIds)
+      .map(function(id){ var pp = lay[id]; return pp ? { id: id, ox: pp.x, oy: pp.y } : null; })
+      .filter(Boolean);
+    dragState = { kind: 'node', nodeId: hit.nodeId, group: grp, origX: np.x, origY: np.y, startX: e.clientX, startY: e.clientY, moved: false, dropTarget: null, dropRejectTarget: null };
   } else if(hit.kind === 'wire'){
     state.selected = { kind: 'wire', key: hit.key, srcId: hit.srcId, dstId: hit.dstId, wireKind: hit.wireKind || 'via' };
     updateChainHighlight();

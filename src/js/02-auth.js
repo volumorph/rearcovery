@@ -24,6 +24,53 @@ function renderModeBadge(){
   });
 }
 
+/* Статусная строка над карточкой входа: режим (онлайн/оффлайн) · версия · SHA-256.
+ * Версия — из APP_VERSION (вшита сборкой), в веб-версии уточняется из ./VERSION.
+ * Хэш считается асинхронно и показывается сокращённо (полный — в title). */
+function renderAuthStatus(){
+  var el = $('auth-status');
+  if(!el) return;
+  var online = location.protocol === 'http:' || location.protocol === 'https:';
+  var mode = online ? '🌐 Онлайн-версия' : '💻 Локальная версия';
+  var version = typeof APP_VERSION !== 'undefined' ? APP_VERSION : '';
+  el.innerHTML = '';
+  var sep = function(){ var s = document.createElement('span'); s.className = 'dot-sep'; s.setAttribute('aria-hidden','true'); return s; };
+  el.appendChild(tag('span', mode));
+  var vEl = null;
+  if(version){
+    el.appendChild(sep());
+    // клик по версии открывает «О приложении» (проверка обновлений, полный хэш)
+    vEl = tag('button', 'версия v' + version);
+    vEl.className = 'auth-ver';
+    vEl.type = 'button';
+    vEl.title = 'О приложении: проверить обновления, полный SHA-256';
+    vEl.addEventListener('click', function(){ if(typeof openAbout === 'function') openAbout(); });
+    el.appendChild(vEl);
+  }
+  el.appendChild(sep());
+  var h = tag('span', 'SHA-256: считаю…');
+  h.className = 'auth-hash';
+  el.appendChild(h);
+  if(online && typeof APP_VERSION !== 'undefined'){
+    // уточнить версию из ./VERSION (для старых опубликованных файлов)
+    fetch('./VERSION', { cache: 'no-store' }).then(function(r){ if(!r.ok) throw new Error('no version file'); return r.text(); }).then(function(t){
+      var v = (t || '').trim();
+      if(v && vEl) vEl.textContent = 'версия v' + v;
+    }).catch(function(){});
+  }
+  sourceText().then(computeHash).then(function(full){
+    h.textContent = 'SHA-256: ' + full.slice(0, 8) + '…' + full.slice(-8);
+    h.title = 'SHA-256: ' + full;
+  }).catch(function(){
+    h.textContent = 'SHA-256: недоступен';
+  });
+}
+function tag(name, text){
+  var n = document.createElement(name);
+  n.textContent = text;
+  return n;
+}
+
 function boot(){
   if(!window.crypto || !crypto.subtle){
     alert('Ваш браузер не поддерживает Web Crypto API (нужен современный Chrome/Firefox/Edge).');
@@ -38,6 +85,7 @@ function boot(){
   applyTheme();
   initThemeListener();
   renderModeBadge();
+  renderAuthStatus();
   if(!localStorage.getItem(LS_VAULTS)) migrateLegacy();
   state.vaults = loadVaults();
   if(state.vaults.length){
@@ -60,16 +108,31 @@ function renderVaultList(){
   }
   el.innerHTML = state.vaults.map(function(v){
     var sel = v.id === state.selectedVaultId;
-    var when = v.updatedAt ? new Date(v.updatedAt).toLocaleString() : '—';
-    // когда сохранён файл и какой версии — видно прямо в карточке хранилища;
-    // каждое поле своей строкой, чтобы длинное имя файла не съедало место
-    var meta = 'обновлено: ' + esc(when);
-    if(v.fileName) meta += '<br>файл: ' + esc(v.fileName);
-    if(v.blob && v.blob.savedAt) meta += '<br>сохранено: ' + esc(new Date(v.blob.savedAt).toLocaleString());
-    if(v.blob) meta += '<br>формат v' + (v.blob.version || 1) + '.' + (v.blob.kdfVersion || 1);
-    return '<div class="vault-card' + (sel ? ' selected' : '') + '" onclick="selectVault(' + esc(jsStr(v.id)) + ')">'
-      + '<div class="vault-name">🔐 ' + esc(v.name || 'Без названия') + '</div>'
+    var b = v.blob;
+    // мета: короткая строка на карточке — нужное читается с одного взгляда
+    var fv = b ? 'формат v' + (b.version || 1) + '.' + (b.kdfVersion || 1) : '';
+    var iters = b && b.iterations ? b.iterations : 0;
+    var itLabel = iters >= 1000000 ? (iters / 1000000).toFixed(1).replace(/\.0$/, '') + 'M' : Math.round(iters / 1000) + 'k';
+    var savedDate = b && b.savedAt ? new Date(b.savedAt) : null;
+    var savedShort = savedDate ? 'сохранено ' + savedDate.toLocaleString([], { day:'2-digit', month:'2-digit' }) : '';
+    var meta = [savedShort, fv].filter(Boolean).join(' · ');
+    // тултип (title) — весь профиль ключа, карточка остаётся компактной
+    var t = [];
+    t.push('Имя хранилища: ' + (v.name || 'Без названия'));
+    t.push('Файл при экспорте: ' + (v.name || 'Без названия') + '.json');
+    t.push('Сохранено: ' + (savedDate ? savedDate.toLocaleString() : 'дата неизвестна'));
+    t.push('Обновлено: ' + (v.updatedAt ? new Date(v.updatedAt).toLocaleString() : '—'));
+    t.push('Формат: v' + (b && b.version || 1) + '.' + (b && b.kdfVersion || 1));
+    t.push('Шифрование: ' + (b && b.kdf || 'PBKDF2-SHA256'));
+    t.push('Итераций: ' + (iters ? (iters >= 1000000 ? (iters / 1000000).toFixed(2).replace(/\.?0+$/, '') + ' млн' : iters.toLocaleString() + ' тыс.') : '—'));
+    if(v.lastExportAt) t.push('Последний экспорт: ' + new Date(v.lastExportAt).toLocaleString());
+    var tip = t.join('\n');
+    return '<div class="vault-card' + (sel ? ' selected' : '') + '" onclick="selectVault(' + esc(jsStr(v.id)) + ')" title="' + esc(tip) + '">'
+      + '<div class="vault-lock" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><rect x="5" y="10.5" width="14" height="9" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" stroke="currentColor" stroke-width="1.7"/></svg></div>'
+      + '<div class="vault-body">'
+      + '<div class="vault-name">' + esc(v.name || 'Без названия') + '</div>'
       + '<div class="vault-meta">' + meta + '</div>'
+      + '</div>'
       + '<div class="vault-actions">'
       + '<button class="btn-mini" title="Переименовать" onclick="event.stopPropagation();renameVault(' + esc(jsStr(v.id)) + ')">✎</button>'
       + '<button class="btn-mini danger" title="Удалить из списка" onclick="event.stopPropagation();deleteVault(' + esc(jsStr(v.id)) + ')">✕</button>'
@@ -105,7 +168,7 @@ function showSetupScreen(mode){
   $('setup-pass').value = '';
   $('setup-pass2').value = '';
   $('setup-err').textContent = '';
-  $('setup-title').textContent = state.vaults.length ? 'Новое хранилище — отдельный мастер-пароль и отдельные данные.' : 'Создание хранилища. Здесь будет жить весь ваш парольный мир: аккаунты, данные восстановления и карта «кто через кого восстанавливается».';
+  $('setup-title').textContent = state.vaults.length ? 'Ещё одно хранилище со своим мастер-паролем.' : 'Создаём ваш первый безопасный парольный мир.';
   $('setup-back').classList.toggle('hidden', state.vaults.length === 0);
   showScreen('setup');
   $('setup-pass').focus();

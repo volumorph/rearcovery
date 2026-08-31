@@ -197,11 +197,10 @@ function refreshBackupStatus(){
     el.title = 'Бэкап свежий: экспорт сделан в день последних изменений. Клик — экспорт.';
   }
 }
-function markExported(fileName){
+function markExported(){
   var entry = currentEntry();
   if(!entry) return;
   entry.lastExportAt = Date.now();
-  if(typeof fileName === 'string' && fileName) entry.fileName = fileName;
   saveVaults(state.vaults);
   refreshBackupStatus();
 }

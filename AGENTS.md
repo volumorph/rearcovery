@@ -72,7 +72,7 @@
 ## Частые точки правок
 
 - Добавить поле в аккаунт: `emptyAccount()` (стартовая схема), `openEditor()`/`readEditorForm()` (форма), `renderGuideDetail()` (шаги маршрута), `accountCard()` (список).
-- Новый тип-иконка: `ACCOUNT_TYPES` + глиф-функция рядом с `envGlyph()`/`goGlyph()`.
+- Новый тип-иконка: добавь запись в `ACCOUNT_TYPES` в `00-core.js`. Для сервиса с фирменным логотипом используй `brand([ПУТЬ, ФОН])` (одноцветный путь Simple Icons, CC0; белый знак на фирменной подложке). Если пути в Simple Icons нет — своя глиф-функция рядом с `envGlyph()`/`hiveGlyph()`. Иконки — инлайн-SVG, без внешних ресурсов.
 - Новое правило риска: `computeRisks()`.
 - Граф: `renderGraph()`, `updateChainHighlight()`, `vaultLayout()`/`ensureLayout()` (позиции узлов и камера сохраняются в `state.vault.layout`).
 - Экран/модалка: HTML-блок в `<body>`, `showScreen()`/`openModal()`.

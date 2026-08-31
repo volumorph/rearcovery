@@ -1,9 +1,12 @@
 /* ================= Экспорт / импорт ================= */
 function exportFileName(){
-  // оригинальное имя файла хранится в реестре (от импорта или прошлого экспорта)
+  // имя файла = имя хранилища: экспорт всегда называется <имя>.json,
+  // переименование хранилища (✎) меняет и имя выгружаемого файла
   var entry = currentEntry();
-  if(entry && entry.fileName) return entry.fileName;
-  return 'paroli-vault-' + new Date().toISOString().slice(0,10) + '.json';
+  var base = entry && entry.name ? entry.name : ('paroli-vault-' + new Date().toISOString().slice(0,10));
+  base = String(base).replace(/[\/\\:*?"<>|]+/g, '_').trim();
+  if(!base) base = 'paroli-vault-' + new Date().toISOString().slice(0,10);
+  return base + '.json';
 }
 
 function doExport(){
@@ -165,7 +168,8 @@ function applyImport(text, fileName){
   if(!validBlob(blob)){ err.textContent = 'Файл не похож на бэкап «Путеводителя по паролям».'; return; }
   var name = fileName || $('import-file-name').textContent || ('Импорт ' + new Date().toLocaleDateString());
   name = name.replace(/\.json$/i, '');
-  state.vaults.push({ id: uid(), name: name, blob: blob, updatedAt: Date.now(), lastExportAt: null, fileName: fileName || null });
+  // единое имя: отображается в списке и задаёт имя файла при экспорте
+  state.vaults.push({ id: uid(), name: name, blob: blob, updatedAt: Date.now(), lastExportAt: null });
   saveVaults(state.vaults);
   state.selectedVaultId = state.vaults[state.vaults.length - 1].id;
   closeModal('modal-import');
